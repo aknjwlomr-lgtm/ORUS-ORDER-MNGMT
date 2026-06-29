@@ -1,0 +1,340 @@
+// Alpha Bakery Order Manager — Prisma schema
+// DB: PostgreSQL (Supabase). Run `npx prisma migrate dev` to create tables.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum CustomerType {
+  NEW
+  EXISTING
+  REGULAR
+}
+
+enum DeliveryType {
+  PICKUP
+  HOME_DELIVERY
+}
+
+enum Priority {
+  NORMAL
+  URGENT
+  HIGH
+  CRITICAL
+}
+
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  INGREDIENTS_READY
+  BAKING
+  DECORATION
+  PACKED
+  READY
+  OUT_FOR_DELIVERY
+  PAYMENT_CLOSED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  NOT_PAID
+  ADVANCE_PAID
+  FULLY_PAID
+  REFUNDED
+}
+
+enum PaymentMode {
+  CASH
+  UPI
+  CARD
+  BANK_TRANSFER
+  OTHER
+}
+
+enum ReminderStatus {
+  PENDING
+  COMPLETED
+  MISSED
+  SNOOZED
+}
+
+enum ReminderPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users  User[]
+  orders Order[]
+}
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  phone        String?
+  passwordHash String
+  role         Role       @default(STAFF)
+  status       UserStatus @default(ACTIVE)
+  branchId     String?
+  branch       Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  // Per-user order-detail permissions (configured by an admin). Default on, so
+  // existing users keep full access until an admin restricts them.
+  permProcess       Boolean @default(true) // Start / Finished processing
+  permDeliverCancel Boolean @default(true) // Delivered + Cancelled
+  permRecordPayment Boolean @default(true) // Record payment box
+  permDeleteOrder   Boolean @default(true) // Delete order
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  ordersCreated  Order[]          @relation("OrderCreatedBy")
+  ordersUpdated  Order[]          @relation("OrderUpdatedBy")
+  reminders      Reminder[]
+  timelineEvents OrderTimeline[]
+  payments       Payment[]
+}
+
+model Customer {
+  id           String       @id @default(cuid())
+  name         String
+  phone        String       @unique
+  whatsapp     String?
+  email        String?
+  address      String?
+  customerType CustomerType @default(NEW)
+  notes        String?
+  totalOrders  Int          @default(0)
+  totalSpent   Float        @default(0)
+  lastOrderAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  orders    Order[]
+  reminders Reminder[]
+}
+
+model Order {
+  id          String  @id @default(cuid())
+  orderNumber String  @unique
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+
+  orderDate    DateTime @default(now())
+  requiredDate DateTime
+  requiredTime String
+  occasion     String?
+
+  // Product type. CAKE = the cake fields below; FRESH_BAKES = a bakery item
+  // (the item name is stored in cakeCategory, quantity in bakeQuantity).
+  orderType    String @default("CAKE") // CAKE | FRESH_BAKES
+  bakeQuantity Float?
+  bakeUnit     String? // PIECE | GRAMS | KG
+
+  // Cake details (cakeCategory doubles as the product name for fresh bakes)
+  cakeCategory        String
+  cakeFlavor          String?
+  cakeShape           String?
+  cakeWeight          String?
+  tiers               Int      @default(1)
+  eggOption           String   @default("EGG") // EGG | EGGLESS
+  sugarFree           Boolean  @default(false)
+  theme               String?
+  colorPreference     String?
+  cakeMessage         String?
+  designDescription   String?
+  specialInstructions String?
+  referenceImage      String?
+
+  // Every cake on the order. The first item mirrors the primary cake summary
+  // columns above; orders can have one or many cakes.
+  cakes OrderCake[]
+
+  // Every item on a FRESH_BAKES order. The first item mirrors the primary
+  // columns above (cakeCategory = name, bakeQuantity, bakeUnit).
+  bakeItems OrderBakeItem[]
+
+  // Delivery
+  deliveryType    DeliveryType @default(PICKUP)
+  deliveryAddress String?
+  deliveryCharge  Float        @default(0)
+  deliveryPerson  String?
+  priority        Priority     @default(NORMAL)
+
+  // Pricing
+  cakePrice     Float         @default(0)
+  extraCharge   Float         @default(0)
+  discount      Float         @default(0)
+  tax           Float         @default(0)
+  totalAmount   Float         @default(0)
+  advancePaid   Float         @default(0)
+  balanceAmount Float         @default(0)
+  paymentStatus PaymentStatus @default(NOT_PAID)
+  paymentMode   PaymentMode?
+  paymentRef    String?
+  billingNotes  String?
+
+  // Production
+  assignedBaker     String?
+  assignedDecorator String?
+  prepStatus        String?
+  kitchenNotes      String?
+  packagingNotes    String?
+  staffComments     String?
+
+  // Overall status (kept in sync as the least-advanced active product track).
+  orderStatus OrderStatus @default(CONFIRMED)
+  // Independent progress per product type. A MIXED order advances cakes and fresh
+  // bakes separately; single-type orders only use the relevant one.
+  cakeStatus  OrderStatus @default(CONFIRMED)
+  bakeStatus  OrderStatus @default(CONFIRMED)
+
+  // The branch that placed this order (the creator's branch, or one chosen by an
+  // admin at creation). Null = no/head-office branch.
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?   @relation("OrderUpdatedBy", fields: [updatedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments  Payment[]
+  reminders Reminder[]
+  timeline  OrderTimeline[]
+
+  @@index([requiredDate])
+  @@index([orderStatus])
+  @@index([paymentStatus])
+  @@index([branchId])
+}
+
+model OrderCake {
+  id                  String  @id @default(cuid())
+  orderId             String
+  order               Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  position            Int     @default(0) // ordering within the order (0 = primary)
+
+  cakeCategory        String
+  cakeFlavor          String?
+  cakeShape           String?
+  cakeWeight          String?
+  tiers               Int      @default(1)
+  eggOption           String   @default("EGG") // EGG | EGGLESS
+  sugarFree           Boolean  @default(false)
+  theme               String?
+  colorPreference     String?
+  cakeMessage         String?
+  designDescription   String?
+  specialInstructions String?
+  referenceImage      String?
+  price               Float    @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model OrderBakeItem {
+  id        String @id @default(cuid())
+  orderId   String
+  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  position  Int    @default(0) // ordering within the order (0 = primary)
+
+  name     String
+  quantity Float  @default(1)
+  unit     String @default("PIECE") // PIECE | GRAMS | KG
+  price    Float  @default(0)
+  notes    String?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model Payment {
+  id           String      @id @default(cuid())
+  orderId      String
+  order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  paymentDate  DateTime    @default(now())
+  amount       Float
+  paymentMode  PaymentMode @default(CASH)
+  paymentRef   String?
+  paymentNote  String?
+  receivedById String?
+  receivedBy   User?       @relation(fields: [receivedById], references: [id])
+  createdAt    DateTime    @default(now())
+}
+
+model Reminder {
+  id             String           @id @default(cuid())
+  orderId        String?
+  order          Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  customerId     String?
+  customer       Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  title          String
+  reminderType   String
+  reminderDate   DateTime
+  reminderTime   String
+  assignedUserId String?
+  assignedUser   User?            @relation(fields: [assignedUserId], references: [id])
+  priority       ReminderPriority @default(MEDIUM)
+  status         ReminderStatus   @default(PENDING)
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([reminderDate])
+  @@index([status])
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model OrderTimeline {
+  id            String   @id @default(cuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  action        String
+  oldStatus     String?
+  newStatus     String?
+  note          String?
+  performedById String?
+  performedBy   User?    @relation(fields: [performedById], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([orderId])
+}

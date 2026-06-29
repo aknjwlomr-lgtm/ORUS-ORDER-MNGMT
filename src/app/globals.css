@@ -1,26 +1,82 @@
 @import "tailwindcss";
 
+/* ── Alpha Bakery theme ─────────────────────────────────────────────
+   Luxurious red & white palette: crisp pearl-white surfaces, rich
+   ruby-crimson brand, deep burgundy headings, and a refined gold
+   accent for that premium touch. Rounded cards, mobile-first.
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fbf6f6; /* pearl white */
+  --foreground: #2a1015; /* deep oxblood text */
+  --card: #ffffff;
+  --muted: #f6e7e9; /* soft blush */
+  --brand: #b00d28; /* rich ruby crimson */
+  --brand-dark: #860a1f; /* deep burgundy */
+  --accent: #c4a049; /* luxe gold */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --radius-xl: 1rem;
 }
 
 body {
-  background: var(--background);
+  /* soft rosy glow at the top for a premium, layered feel */
+  background:
+    radial-gradient(1100px 520px at 50% -12%, #fbe2e6 0%, transparent 62%),
+    var(--background);
+  background-attachment: fixed;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* luxe text selection + scrollbars */
+::selection {
+  background: var(--brand);
+  color: #fff;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--brand) 55%, transparent) transparent;
+}
+
+/* hide number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* safe-area padding for mobile bottom nav */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+}
+
+/* On touch devices (phones / installed PWA), stop a left→right swipe at a
+   scroll edge from triggering the browser's back-navigation. Only the
+   horizontal axis is locked, so vertical scrolling / pull-to-refresh stay
+   intact; desktop keeps its trackpad swipe-back (fine pointer is excluded). */
+@media (hover: none) and (pointer: coarse) {
+  html,
+  body {
+    overscroll-behavior-x: none;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
 }

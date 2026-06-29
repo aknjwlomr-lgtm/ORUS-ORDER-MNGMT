@@ -1,0 +1,112 @@
+import { Users, SlidersHorizontal, Building2 } from "lucide-react";
+import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/session";
+import { getOrderPrefix, getAppName, getMasterLockdown, getMasterLockdownManual, getAutoLockdownAt, getProductTypesEnabled, getBranchManagementEnabled } from "@/lib/settings";
+import { GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
+import { MasterLockdownCard } from "@/components/settings/master-lockdown-card";
+import { SetupGuide } from "@/components/settings/setup-guide";
+import { UserManagementTabs } from "@/components/settings/user-management-tabs";
+import { AdminUsersPanel, type AdminUser } from "@/components/settings/admin-users-panel";
+import { OrderPrefixForm } from "@/components/settings/order-prefix-form";
+import { AppNameForm } from "@/components/settings/app-name-form";
+import { ProductTypesForm } from "@/components/settings/product-types-form";
+import { DataResetPanel } from "@/components/settings/data-reset-panel";
+import { SettingsNav, type SettingsSection } from "@/components/settings/settings-nav";
+import { BranchPanel, type BranchRow, type BranchUser } from "@/components/settings/branch-panel";
+
+export const dynamic = "force-dynamic";
+
+export default async function SettingsPage() {
+  const user = await requireAdmin();
+
+  const isGlobalAdmin = user.email === GLOBAL_ADMIN_EMAIL;
+
+  // Fetch everything that's independent in parallel — one round-trip's worth of
+  // latency instead of ~10 sequential queries to a remote DB.
+  const [orderPrefix, appName, productTypes, branchEnabled, allRows, branchRows] = await Promise.all([
+    getOrderPrefix(),
+    getAppName(),
+    getProductTypesEnabled(),
+    getBranchManagementEnabled(),
+    prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.branch.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { users: true } } } }),
+  ]);
+
+  // Lockdown info (global admin only). getMasterLockdown may convert a fired
+  // timer, so run it first, then read the two flags in parallel.
+  let lockdown = false;
+  let autoLockdownAt: string | null = null;
+  if (isGlobalAdmin) {
+    await getMasterLockdown();
+    const [manual, at] = await Promise.all([getMasterLockdownManual(), getAutoLockdownAt()]);
+    lockdown = manual;
+    autoLockdownAt = at?.toISOString() ?? null;
+  }
+
+  // Only the global admin can see/manage the global admin account. Other admins
+  // never see its row (or reset its password).
+  const rows = isGlobalAdmin ? allRows : allRows.filter((u) => u.email !== GLOBAL_ADMIN_EMAIL);
+  const users: AdminUser[] = rows.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    status: u.status,
+    createdAt: u.createdAt.toISOString(),
+    permProcess: u.permProcess,
+    permDeliverCancel: u.permDeliverCancel,
+    permRecordPayment: u.permRecordPayment,
+    permDeleteOrder: u.permDeleteOrder,
+  }));
+
+  const branches: BranchRow[] = branchRows.map((b) => ({ id: b.id, name: b.name, userCount: b._count.users }));
+  const branchUsers: BranchUser[] = rows.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, branchId: u.branchId }));
+
+  const sections: SettingsSection[] = [
+    {
+      key: "users",
+      label: "User management",
+      icon: <Users size={18} />,
+      content: (
+        <UserManagementTabs
+          showGlobal={isGlobalAdmin}
+          userContent={<AdminUsersPanel users={users} currentUserId={user.id} />}
+          globalContent={isGlobalAdmin ? (
+            <div className="space-y-4">
+              <MasterLockdownCard enabled={lockdown} autoLockdownAt={autoLockdownAt} />
+              <SetupGuide />
+              <DataResetPanel />
+            </div>
+          ) : null}
+        />
+      ),
+    },
+    {
+      key: "branches",
+      label: "Branch management",
+      icon: <Building2 size={18} />,
+      content: <BranchPanel enabled={branchEnabled} branches={branches} users={branchUsers} />,
+    },
+    {
+      key: "general",
+      label: "General",
+      icon: <SlidersHorizontal size={18} />,
+      content: (
+        <div className="space-y-4">
+          <AppNameForm current={appName} />
+          <OrderPrefixForm current={orderPrefix} />
+          <ProductTypesForm cakes={productTypes.cakes} freshBakes={productTypes.freshBakes} />
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="mx-auto max-w-5xl px-3 py-4 md:px-6">
+      <h1 className="mb-1 text-xl font-bold text-brand-dark">Settings</h1>
+      <p className="mb-4 text-sm text-foreground/50">Signed in as {user.name} · Administrator</p>
+
+      <SettingsNav sections={sections} />
+    </div>
+  );
+}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#b00d28"/>
+  <g transform="translate(256 286)">
+    <!-- plate -->
+    <ellipse cx="0" cy="120" rx="170" ry="26" fill="#860a1f"/>
+    <!-- cake body -->
+    <rect x="-130" y="-10" width="260" height="130" rx="18" fill="#ffffff"/>
+    <rect x="-130" y="-10" width="260" height="40" fill="#c4a049"/>
+    <!-- drips -->
+    <path d="M-110 28 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 v-26 h-196 z" fill="#c4a049"/>
+    <!-- candle -->
+    <rect x="-8" y="-70" width="16" height="64" rx="4" fill="#860a1f"/>
+    <circle cx="0" cy="-82" r="12" fill="#ffd27a"/>
+  </g>
+</svg>
