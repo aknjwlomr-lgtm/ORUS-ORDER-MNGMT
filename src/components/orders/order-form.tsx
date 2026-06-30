@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { User, Cake, Truck, IndianRupee, CheckCircle2, ChevronDown, Plus, Trash2 } from "lucide-react";
+import { User, Cake, Truck, IndianRupee, CheckCircle2, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Select, Fieldset } from "@/components/ui/field";
 import { cn, inr, bakeQty } from "@/lib/utils";
@@ -723,11 +723,23 @@ export function OrderForm({
               </Fieldset>
             )}
             {staffMembers.length > 0 && (
-              <Fieldset label="Staff">
-                <Select value={String(v.assignedStaff)} onChange={(e) => set("assignedStaff", e.target.value)}>
-                  <option value="">No staff</option>
-                  {staffMembers.map((s) => <option key={s} value={s}>{s}</option>)}
-                </Select>
+              <Fieldset label="Order taking staff">
+                <div className="flex gap-2">
+                  <Select value={String(v.assignedStaff)} onChange={(e) => set("assignedStaff", e.target.value)} className="flex-1">
+                    {!v.assignedStaff && <option value="" disabled>Select staff…</option>}
+                    {staffMembers.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </Select>
+                  {v.assignedStaff && (
+                    <button
+                      type="button"
+                      onClick={() => set("assignedStaff", "")}
+                      aria-label="Clear staff"
+                      className="shrink-0 rounded-xl border border-black/10 bg-white px-3 text-foreground/60 transition hover:bg-muted"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
               </Fieldset>
             )}
 
