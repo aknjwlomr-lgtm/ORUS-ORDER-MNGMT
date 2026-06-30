@@ -1,10 +1,10 @@
 import { Users, SlidersHorizontal, Building2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
-import { getOrderPrefix, getAppName, getMasterLockdown, getMasterLockdownManual, getAutoLockdownAt, getProductTypesEnabled, getBranchManagementEnabled, getStaffMembers, getOrderMode, getAdminSectionAccess } from "@/lib/settings";
+import { getOrderPrefix, getAppName, getMasterLockdown, getMasterLockdownManual, getAutoLockdownAt, getProductTypesEnabled, getBranchManagementEnabled, getStaffMembers, getAppSegment, getAdminSectionAccess } from "@/lib/settings";
 import { GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
 import { MasterLockdownCard } from "@/components/settings/master-lockdown-card";
-import { OrderModeCard } from "@/components/settings/order-mode-card";
+import { SegmentCard } from "@/components/settings/segment-card";
 import { AdminAccessCard } from "@/components/settings/admin-access-card";
 import { SetupGuide } from "@/components/settings/setup-guide";
 import { UserManagementTabs } from "@/components/settings/user-management-tabs";
@@ -47,13 +47,13 @@ export default async function SettingsPage() {
   // timer, so run it first, then read the two flags in parallel.
   let lockdown = false;
   let autoLockdownAt: string | null = null;
-  let orderMode: Awaited<ReturnType<typeof getOrderMode>> = "PRO";
+  let appSegment: Awaited<ReturnType<typeof getAppSegment>> = "PRO";
   if (isGlobalAdmin) {
     await getMasterLockdown();
-    const [manual, at, mode] = await Promise.all([getMasterLockdownManual(), getAutoLockdownAt(), getOrderMode()]);
+    const [manual, at, seg] = await Promise.all([getMasterLockdownManual(), getAutoLockdownAt(), getAppSegment()]);
     lockdown = manual;
     autoLockdownAt = at?.toISOString() ?? null;
-    orderMode = mode;
+    appSegment = seg;
   }
 
   // Only the global admin can see/manage the global admin account. Other admins
@@ -88,13 +88,16 @@ export default async function SettingsPage() {
           userContent={<AdminUsersPanel users={users} currentUserId={user.id} />}
           globalContent={isGlobalAdmin ? (
             <div className="space-y-4">
+              <SegmentCard current={appSegment} />
               <AdminAccessCard
                 userManagement={adminAccess.userManagement}
                 branchManagement={adminAccess.branchManagement}
                 reports={adminAccess.reports}
                 customers={adminAccess.customers}
+                contact={adminAccess.contact}
+                receipt={adminAccess.receipt}
+                orderStatus={adminAccess.orderStatus}
               />
-              <OrderModeCard current={orderMode} />
               <MasterLockdownCard enabled={lockdown} autoLockdownAt={autoLockdownAt} />
               <SetupGuide />
               <DataResetPanel />

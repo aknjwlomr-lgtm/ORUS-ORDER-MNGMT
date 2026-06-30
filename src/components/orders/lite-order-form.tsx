@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Select, Fieldset } from "@/components/ui/field";
 import { cn, inr } from "@/lib/utils";
@@ -22,6 +23,11 @@ type CustomerSuggestion = {
 };
 
 type MeasureUnit = "PIECE" | "GRAMS" | "KG";
+type CakeLine = { flavor: string; qty: string; unit: MeasureUnit; message: string; instructions: string; price: string };
+type ItemLine = { name: string; qty: string; unit: MeasureUnit; notes: string; price: string };
+
+const cakeLine = (): CakeLine => ({ flavor: "", qty: "", unit: "PIECE", message: "", instructions: "", price: "" });
+const itemLine = (): ItemLine => ({ name: "", qty: "", unit: "PIECE", notes: "", price: "" });
 
 // Today as a local "YYYY-MM-DD" (no timezone shift).
 function todayKey(): string {
@@ -72,24 +78,32 @@ export function LiteOrderForm({
   const [requiredTime, setRequiredTime] = useState("");
 
   const [productType, setProductType] = useState<"CAKE" | "FRESH_BAKES">(cakesEnabled ? "CAKE" : "FRESH_BAKES");
-  const [cakeFlavor, setCakeFlavor] = useState("");
-  const [bakeName, setBakeName] = useState("");
-  const [qty, setQty] = useState("");
-  const [unit, setUnit] = useState<MeasureUnit>("PIECE");
-  const [cakeMessage, setCakeMessage] = useState("");
-  const [specialInstructions, setSpecialInstructions] = useState("");
-  const [price, setPrice] = useState("");
+  const [cakes, setCakes] = useState<CakeLine[]>([cakeLine()]);
+  const [items, setItems] = useState<ItemLine[]>([itemLine()]);
   const [advancePaid, setAdvancePaid] = useState("");
 
   // Shared custom-option lists (so an added flavour/item sticks for this session).
   const [flavors, setFlavors] = useState<string[]>(customCakeFlavors);
-  const [bakeItems, setBakeItems] = useState<string[]>(customBakeItems);
+  const [bakeNames, setBakeNames] = useState<string[]>(customBakeItems);
 
   const [suggestions, setSuggestions] = useState<CustomerSuggestion[]>([]);
   const phoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSeq = useRef(0);
 
-  const total = Math.max(0, Number(price || 0));
+  // Cake / item line helpers.
+  const patchCake = (i: number, patch: Partial<CakeLine>) => setCakes((p) => p.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  const patchItem = (i: number, patch: Partial<ItemLine>) => setItems((p) => p.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+  const removeCake = (i: number) => setCakes((p) => (p.length > 1 ? p.filter((_, idx) => idx !== i) : p));
+  const removeItem = (i: number) => setItems((p) => (p.length > 1 ? p.filter((_, idx) => idx !== i) : p));
+
+  // A line counts once it has a price (items also need a name). The order's type
+  // is derived from what's included — same rule the Pro form uses.
+  const includedCakes = useMemo(() => cakes.filter((c) => Number(c.price || 0) > 0), [cakes]);
+  const includedItems = useMemo(() => items.filter((it) => it.name.trim() !== "" && Number(it.price || 0) > 0), [items]);
+  const total = useMemo(
+    () => [...includedCakes, ...includedItems].reduce((s, l) => s + Number(l.price || 0), 0),
+    [includedCakes, includedItems]
+  );
   const balance = Math.max(0, total - Number(advancePaid || 0));
 
   function onPhoneChange(value: string) {
@@ -142,9 +156,19 @@ export function LiteOrderForm({
     if (pickBranch && !branchId) return "Branch is required";
     if (!requiredDate) return "Required date is required";
     if (!requiredTime) return "Required time is required";
-    if (productType === "FRESH_BAKES" && !bakeName.trim()) return "Bakery item is required";
-    if (!(Number(qty || 0) > 0)) return productType === "CAKE" && unit !== "PIECE" ? "Weight is required" : "Quantity is required";
-    if (!(Number(price || 0) > 0)) return "Price must be greater than 0";
+    for (const c of cakes) {
+      if (String(c.price).trim() !== "" && Number(c.price) <= 0) return "Each cake needs a price greater than 0";
+      if (Number(c.price || 0) > 0 && !c.flavor.trim()) return "Cake flavour is required";
+      if (Number(c.price || 0) > 0 && !(Number(c.qty || 0) > 0)) return "Each cake needs a quantity or weight";
+    }
+    for (const it of items) {
+      const touched = it.name.trim() !== "" || String(it.price).trim() !== "";
+      if (!touched) continue;
+      if (!it.name.trim()) return "Bakery item is required";
+      if (!(Number(it.qty || 0) > 0)) return "Quantity must be greater than 0";
+      if (!(Number(it.price || 0) > 0)) return "Each item needs a price greater than 0";
+    }
+    if (includedCakes.length + includedItems.length === 0) return "Add at least one cake or item";
     if (Number(advancePaid || 0) > total) return "Advance paid cannot be greater than total amount";
     return null;
   }
@@ -154,7 +178,14 @@ export function LiteOrderForm({
     if (err) { setError(err); return; }
     setError(null);
 
-    const common = {
+    const orderType =
+      includedCakes.length > 0 && includedItems.length > 0
+        ? "MIXED"
+        : includedItems.length > 0
+          ? "FRESH_BAKES"
+          : "CAKE";
+
+    const payload: Record<string, unknown> = {
       customerName,
       phone,
       whatsapp: whatsapp || phone,
@@ -163,47 +194,49 @@ export function LiteOrderForm({
       requiredDate,
       requiredTime,
       deliveryType: "PICKUP",
+      orderType,
       cakePrice: String(total),
       advancePaid: advancePaid || "0",
+      cakes: includedCakes.map((c) => ({
+        cakeCategory: "Cake",
+        cakeFlavor: c.flavor,
+        cakeShape: "",
+        cakeWeight: measureToCakeWeight(c.qty, c.unit),
+        tiers: "1",
+        eggOption: "EGG",
+        sugarFree: false,
+        theme: "",
+        colorPreference: "",
+        cakeMessage: c.message,
+        designDescription: "",
+        specialInstructions: c.instructions,
+        price: c.price,
+      })),
+      bakeItems: includedItems.map((it) => ({
+        name: it.name,
+        quantity: it.qty,
+        unit: it.unit,
+        price: it.price,
+        notes: it.notes,
+      })),
     };
 
-    const payload: Record<string, unknown> =
-      productType === "CAKE"
-        ? {
-            ...common,
-            orderType: "CAKE",
-            cakeCategory: "Cake",
-            cakeFlavor,
-            cakeWeight: measureToCakeWeight(qty, unit),
-            cakeMessage,
-            specialInstructions,
-            tiers: "1",
-            eggOption: "EGG",
-            cakes: [{
-              cakeCategory: "Cake",
-              cakeFlavor,
-              cakeShape: "",
-              cakeWeight: measureToCakeWeight(qty, unit),
-              tiers: "1",
-              eggOption: "EGG",
-              sugarFree: false,
-              theme: "",
-              colorPreference: "",
-              cakeMessage,
-              designDescription: "",
-              specialInstructions,
-              price: String(total),
-            }],
-          }
-        : {
-            ...common,
-            orderType: "FRESH_BAKES",
-            bakeItem: bakeName,
-            bakeQuantity: qty,
-            bakeUnit: unit,
-            specialInstructions,
-            bakeItems: [{ name: bakeName, quantity: qty, unit, price: String(total), notes: specialInstructions }],
-          };
+    // Mirror the primary flat columns from the first included line.
+    if (includedCakes.length > 0) {
+      const f = includedCakes[0];
+      Object.assign(payload, {
+        cakeCategory: "Cake",
+        cakeFlavor: f.flavor,
+        cakeWeight: measureToCakeWeight(f.qty, f.unit),
+        cakeMessage: f.message,
+        specialInstructions: f.instructions,
+        tiers: "1",
+        eggOption: "EGG",
+      });
+    } else {
+      const f = includedItems[0];
+      Object.assign(payload, { bakeItem: f.name, bakeQuantity: f.qty, bakeUnit: f.unit, specialInstructions: f.notes });
+    }
 
     start(async () => {
       try {
@@ -224,7 +257,7 @@ export function LiteOrderForm({
       <h1 className="mb-3 text-xl font-bold text-brand-dark">New Order · Lite</h1>
 
       <div className="grid gap-4 rounded-2xl border border-black/5 bg-card p-4 shadow-sm sm:grid-cols-2">
-        {/* 1. Mobile + 2. Name */}
+        {/* Mobile + name */}
         <Fieldset label="Mobile number" required>
           <div className="relative">
             <Input
@@ -261,7 +294,7 @@ export function LiteOrderForm({
           <Input value={customerName} onChange={(e) => setCustomerName(e.target.value.toUpperCase())} />
         </Fieldset>
 
-        {/* 3. Branch + Staff */}
+        {/* Branch + staff */}
         {pickBranch && (
           <Fieldset label="Branch" required>
             <Select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
@@ -279,7 +312,7 @@ export function LiteOrderForm({
           </Fieldset>
         )}
 
-        {/* 4. Required date + time */}
+        {/* Required date + time */}
         <Fieldset label="Required date" required>
           <Input type="date" value={requiredDate} onChange={(e) => setRequiredDate(e.target.value)} />
         </Fieldset>
@@ -287,10 +320,10 @@ export function LiteOrderForm({
           <TimePicker12 value={requiredTime} onChange={setRequiredTime} />
         </Fieldset>
 
-        {/* 5. Product: cake (flavour) or fresh bakes (item) */}
+        {/* Product type toggle */}
         {showTypeToggle && (
           <div className="sm:col-span-2 flex gap-2">
-            {([["CAKE", "🎂 Cake"], ["FRESH_BAKES", "🥐 Fresh Bakes"]] as const).map(([val, label]) => (
+            {([["CAKE", "🎂 Cake", includedCakes.length], ["FRESH_BAKES", "🥐 Fresh Bakes", includedItems.length]] as const).map(([val, label, count]) => (
               <button
                 key={val}
                 type="button"
@@ -301,110 +334,110 @@ export function LiteOrderForm({
                 )}
               >
                 {label}
+                {count > 0 && (
+                  <span className={cn("ml-1.5 rounded-full px-1.5 py-0.5 text-xs", productType === val ? "bg-white/25" : "bg-brand/10 text-brand-dark")}>
+                    {count}
+                  </span>
+                )}
               </button>
             ))}
           </div>
         )}
 
-        {productType === "CAKE" ? (
-          <Fieldset label="Cake flavour">
-            <AttributePicker
-              value={cakeFlavor}
-              onChange={setCakeFlavor}
-              base={CAKE_FLAVORS}
-              custom={flavors}
-              onCustomChange={setFlavors}
-              onAdd={addCakeFlavor}
-              onRemove={removeCakeFlavor}
-              selectLabel="Select flavor"
-              createLabel="Create flavor"
-              inputPlaceholder="New flavor"
-            />
-          </Fieldset>
-        ) : (
-          <Fieldset label="Bakery item" required>
-            <BakeItemPicker
-              value={bakeName}
-              onChange={setBakeName}
-              base={FRESH_BAKE_ITEMS}
-              custom={bakeItems}
-              onCustomChange={setBakeItems}
-            />
-          </Fieldset>
-        )}
-
-        {/* 5b. Measure by piece / weight */}
-        <Fieldset label="Measure by">
-          <div className="flex gap-2">
-            {([["PIECE", "Piece"], ["WEIGHT", "Weight"]] as const).map(([m, label]) => {
-              const active = m === "PIECE" ? unit === "PIECE" : unit !== "PIECE";
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => { setUnit(m === "PIECE" ? "PIECE" : "KG"); setQty(""); }}
-                  className={cn(
-                    "flex-1 rounded-xl border py-2.5 text-sm uppercase",
-                    active ? "border-brand bg-brand text-white" : "border-black/10 bg-white"
-                  )}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </Fieldset>
-        <Fieldset label={unit === "PIECE" ? "Number of pieces" : "Weight"} required>
-          <div className="flex gap-2">
-            <Input
-              type="number"
-              min={0}
-              step={unit === "PIECE" ? 1 : "any"}
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              className="flex-1"
-            />
-            {unit !== "PIECE" && (
-              <div className="flex gap-1">
-                {([["GRAMS", "gms"], ["KG", "kg"]] as const).map(([u, label]) => (
-                  <button
-                    key={u}
-                    type="button"
-                    onClick={() => { setUnit(u); setQty(""); }}
-                    className={cn(
-                      "rounded-xl border px-3 text-sm",
-                      unit === u ? "border-brand bg-brand text-white" : "border-black/10 bg-white"
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </Fieldset>
-
-        {/* 6. Message on cake (cakes only) */}
+        {/* Cake lines */}
         {productType === "CAKE" && (
-          <Fieldset label="Message on cake" className="sm:col-span-2">
-            <Input value={cakeMessage} onChange={(e) => setCakeMessage(e.target.value.toUpperCase())} />
-          </Fieldset>
+          <div className="sm:col-span-2 space-y-3">
+            {cakes.map((c, i) => (
+              <div key={i} className={cn("rounded-xl border border-black/10 p-3", i % 2 === 0 ? "bg-rose-50/70" : "bg-amber-50/70")}>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-brand-dark">{cakes.length > 1 ? `Cake ${i + 1}` : "Cake details"}</h3>
+                  {cakes.length > 1 && (
+                    <button type="button" onClick={() => removeCake(i)} className="flex items-center gap-1 text-xs font-medium text-rose-600">
+                      <Trash2 size={14} /> Remove
+                    </button>
+                  )}
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Fieldset label="Cake flavour" required>
+                    <AttributePicker
+                      value={c.flavor}
+                      onChange={(val) => patchCake(i, { flavor: val })}
+                      base={CAKE_FLAVORS}
+                      custom={flavors}
+                      onCustomChange={setFlavors}
+                      onAdd={addCakeFlavor}
+                      onRemove={removeCakeFlavor}
+                      selectLabel="Select flavor"
+                      createLabel="Create flavor"
+                      inputPlaceholder="New flavor"
+                    />
+                  </Fieldset>
+                  <Fieldset label="Price (₹)" required>
+                    <Input type="number" min={0} placeholder="0" value={c.price} onChange={(e) => patchCake(i, { price: e.target.value })} />
+                  </Fieldset>
+                  <MeasureField qty={c.qty} unit={c.unit} onChange={(qty, unit) => patchCake(i, { qty, unit })} />
+                  <Fieldset label="Message on cake" className="sm:col-span-2">
+                    <Input value={c.message} onChange={(e) => patchCake(i, { message: e.target.value.toUpperCase() })} />
+                  </Fieldset>
+                  <Fieldset label="Special instructions" className="sm:col-span-2">
+                    <Textarea value={c.instructions} onChange={(e) => patchCake(i, { instructions: e.target.value.toUpperCase() })} />
+                  </Fieldset>
+                </div>
+              </div>
+            ))}
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => setCakes((p) => [...p, cakeLine()])}>
+                <Plus size={16} /> Add another cake
+              </Button>
+            </div>
+          </div>
         )}
 
-        {/* 7. Special instructions */}
-        <Fieldset label="Special instructions" className="sm:col-span-2">
-          <Textarea value={specialInstructions} onChange={(e) => setSpecialInstructions(e.target.value.toUpperCase())} />
-        </Fieldset>
+        {/* Fresh-bake item lines */}
+        {productType === "FRESH_BAKES" && (
+          <div className="sm:col-span-2 space-y-3">
+            {items.map((it, i) => (
+              <div key={i} className={cn("rounded-xl border border-black/10 p-3", i % 2 === 0 ? "bg-rose-50/70" : "bg-amber-50/70")}>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-brand-dark">{items.length > 1 ? `Item ${i + 1}` : "Item details"}</h3>
+                  {items.length > 1 && (
+                    <button type="button" onClick={() => removeItem(i)} className="flex items-center gap-1 text-xs font-medium text-rose-600">
+                      <Trash2 size={14} /> Remove
+                    </button>
+                  )}
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Fieldset label="Bakery item" required>
+                    <BakeItemPicker
+                      value={it.name}
+                      onChange={(val) => patchItem(i, { name: val })}
+                      base={FRESH_BAKE_ITEMS}
+                      custom={bakeNames}
+                      onCustomChange={setBakeNames}
+                    />
+                  </Fieldset>
+                  <Fieldset label="Price (₹)" required>
+                    <Input type="number" min={0} placeholder="0" value={it.price} onChange={(e) => patchItem(i, { price: e.target.value })} />
+                  </Fieldset>
+                  <MeasureField qty={it.qty} unit={it.unit} onChange={(qty, unit) => patchItem(i, { qty, unit })} />
+                  <Fieldset label="Notes / instructions" className="sm:col-span-2">
+                    <Textarea value={it.notes} onChange={(e) => patchItem(i, { notes: e.target.value.toUpperCase() })} placeholder="Flavour, packing, message…" />
+                  </Fieldset>
+                </div>
+              </div>
+            ))}
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => setItems((p) => [...p, itemLine()])}>
+                <Plus size={16} /> Add another item
+              </Button>
+            </div>
+          </div>
+        )}
 
-        {/* 8. Price + 9. Advance */}
-        <Fieldset label="Price (₹)" required>
-          <Input type="number" min={0} placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} />
-        </Fieldset>
-        <Fieldset label="Advance paid (₹)">
+        {/* Advance + balance */}
+        <Fieldset label="Advance paid (₹)" className="sm:col-span-2">
           <Input type="number" min={0} placeholder="0" value={advancePaid} onChange={(e) => setAdvancePaid(e.target.value)} />
         </Fieldset>
-
-        {/* 10. Balance */}
         <div className="sm:col-span-2 rounded-xl bg-muted/60 p-3 text-sm">
           <div className="flex justify-between"><span>Total amount</span><span className="font-bold">{inr(total)}</span></div>
           <div className="flex justify-between text-rose-600"><span>Balance</span><span className="font-bold">{inr(balance)}</span></div>
@@ -413,7 +446,7 @@ export function LiteOrderForm({
         {error && <p className="sm:col-span-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
       </div>
 
-      {/* 11. Save */}
+      {/* Save */}
       <div className="no-print fixed inset-x-0 bottom-14 z-30 border-t border-black/5 bg-card/95 px-3 py-3 backdrop-blur md:bottom-0 md:pl-64">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
           <div className="text-sm">
@@ -427,6 +460,58 @@ export function LiteOrderForm({
         </div>
       </div>
     </div>
+  );
+}
+
+// "Measure by" Piece/Weight toggle + matching quantity input (two Fieldsets, so
+// it drops into the line's 2-col grid). Switching units clears the value.
+function MeasureField({ qty, unit, onChange }: { qty: string; unit: MeasureUnit; onChange: (qty: string, unit: MeasureUnit) => void }) {
+  return (
+    <>
+      <Fieldset label="Measure by">
+        <div className="flex gap-2">
+          {([["PIECE", "Piece"], ["WEIGHT", "Weight"]] as const).map(([m, label]) => {
+            const active = m === "PIECE" ? unit === "PIECE" : unit !== "PIECE";
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => onChange("", m === "PIECE" ? "PIECE" : "KG")}
+                className={cn("flex-1 rounded-xl border py-2.5 text-sm uppercase", active ? "border-brand bg-brand text-white" : "border-black/10 bg-white")}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </Fieldset>
+      <Fieldset label={unit === "PIECE" ? "Number of pieces" : "Weight"} required>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            min={0}
+            step={unit === "PIECE" ? 1 : "any"}
+            value={qty}
+            onChange={(e) => onChange(e.target.value, unit)}
+            className="flex-1"
+          />
+          {unit !== "PIECE" && (
+            <div className="flex gap-1">
+              {([["GRAMS", "gms"], ["KG", "kg"]] as const).map(([u, label]) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => onChange("", u)}
+                  className={cn("rounded-xl border px-3 text-sm", unit === u ? "border-brand bg-brand text-white" : "border-black/10 bg-white")}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </Fieldset>
+    </>
   );
 }
 

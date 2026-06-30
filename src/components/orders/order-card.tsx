@@ -51,7 +51,7 @@ function to12h(hhmm: string): string {
   return `${hr}:${(m ?? "00").padStart(2, "0")} ${period}`;
 }
 
-export function OrderCard({ o, canEdit = false }: { o: OrderCardData; canEdit?: boolean }) {
+export function OrderCard({ o, canEdit = false, canContact = true }: { o: OrderCardData; canEdit?: boolean; canContact?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const appName = useAppName();
@@ -164,15 +164,17 @@ export function OrderCard({ o, canEdit = false }: { o: OrderCardData; canEdit?: 
         <StageBar status={o.orderStatus} balance={o.balanceAmount} pending={pending} onSelect={setStatus} products={products} />
       </div>
 
-      {/* Contact */}
-      <div className="mt-3 flex gap-2" onClick={stop}>
-        <a href={telLink(o.phone)} className="flex-1">
-          <Button size="sm" variant="ghost" className="w-full"><Phone size={16} /> Call</Button>
-        </a>
-        <a href={waLink(o.whatsapp || o.phone, waText)} target="_blank" rel="noopener noreferrer" className="flex-1">
-          <Button size="sm" variant="ghost" className="w-full"><MessageCircle size={16} /> WhatsApp</Button>
-        </a>
-      </div>
+      {/* Contact — gated by the global admin (Settings → Admin access). */}
+      {canContact && (
+        <div className="mt-3 flex gap-2" onClick={stop}>
+          <a href={telLink(o.phone)} className="flex-1">
+            <Button size="sm" variant="ghost" className="w-full"><Phone size={16} /> Call</Button>
+          </a>
+          <a href={waLink(o.whatsapp || o.phone, waText)} target="_blank" rel="noopener noreferrer" className="flex-1">
+            <Button size="sm" variant="ghost" className="w-full"><MessageCircle size={16} /> WhatsApp</Button>
+          </a>
+        </div>
+      )}
     </div>
   );
 }

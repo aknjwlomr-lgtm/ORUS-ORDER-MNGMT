@@ -128,40 +128,77 @@ export const ADMIN_USER_MGMT_KEY = "adminUserMgmtEnabled";
 export const ADMIN_BRANCH_MGMT_KEY = "adminBranchMgmtEnabled";
 export const ADMIN_REPORTS_KEY = "adminReportsEnabled";
 export const ADMIN_CUSTOMERS_KEY = "adminCustomersEnabled";
-export type AdminSection = "userManagement" | "branchManagement" | "reports" | "customers";
+export const ADMIN_CONTACT_KEY = "adminContactEnabled";
+export const ADMIN_RECEIPT_KEY = "adminReceiptEnabled";
+export const ADMIN_ORDER_STATUS_KEY = "adminOrderStatusEnabled";
+export type AdminSection = "userManagement" | "branchManagement" | "reports" | "customers" | "contact" | "receipt" | "orderStatus";
 
 const ADMIN_SECTION_KEY: Record<AdminSection, string> = {
   userManagement: ADMIN_USER_MGMT_KEY,
   branchManagement: ADMIN_BRANCH_MGMT_KEY,
   reports: ADMIN_REPORTS_KEY,
   customers: ADMIN_CUSTOMERS_KEY,
+  contact: ADMIN_CONTACT_KEY,
+  receipt: ADMIN_RECEIPT_KEY,
+  orderStatus: ADMIN_ORDER_STATUS_KEY,
 };
 
 export type AdminSectionAccess = Record<AdminSection, boolean>;
 
 /**
- * Which areas regular (non-global) admins may see. The global admin always sees
- * everything; these flags gate the User-management and Branch-management settings
- * sections plus the Reports and Customers nav links for the admins they create.
- * Default OFF — the global admin opts each one in. (General is always visible.)
+ * Which areas regular (non-global) users may see. The global admin always sees
+ * everything; these flags gate the User-management/Branch-management settings
+ * sections, the Reports and Customers nav links, and the customer-contact feature
+ * (Call/WhatsApp on cards + the Contact-customer block in an order). Default OFF —
+ * the global admin opts each one in. (General is always visible.)
  */
 export async function getAdminSectionAccess(): Promise<AdminSectionAccess> {
-  const [u, b, r, c] = await Promise.all([
+  const [u, b, r, c, ct, rc, os] = await Promise.all([
     getSetting(ADMIN_USER_MGMT_KEY),
     getSetting(ADMIN_BRANCH_MGMT_KEY),
     getSetting(ADMIN_REPORTS_KEY),
     getSetting(ADMIN_CUSTOMERS_KEY),
+    getSetting(ADMIN_CONTACT_KEY),
+    getSetting(ADMIN_RECEIPT_KEY),
+    getSetting(ADMIN_ORDER_STATUS_KEY),
   ]);
   return {
     userManagement: u === "true",
     branchManagement: b === "true",
     reports: r === "true",
     customers: c === "true",
+    contact: ct === "true",
+    receipt: rc === "true",
+    orderStatus: os === "true",
   };
 }
 
 export async function setAdminSectionAccess(section: AdminSection, enabled: boolean): Promise<void> {
   await setSetting(ADMIN_SECTION_KEY[section], enabled ? "true" : "false");
+}
+
+/** Turn every admin-access feature on or off at once (used by the Pro/Lite segment preset). */
+export async function setAllAdminSectionAccess(enabled: boolean): Promise<void> {
+  await Promise.all(
+    (Object.keys(ADMIN_SECTION_KEY) as AdminSection[]).map((s) => setAdminSectionAccess(s, enabled))
+  );
+}
+
+export const APP_SEGMENT_KEY = "appSegment";
+export type AppSegment = "PRO" | "LITE";
+
+/**
+ * The app's overall plan. PRO enables all admin features and shows both order
+ * forms; LITE turns those features off and shows only the quick Lite form.
+ * Selecting a segment applies it as a preset (see updateAppSegment); the
+ * individual admin-access toggles stay editable afterward. Default PRO.
+ */
+export async function getAppSegment(): Promise<AppSegment> {
+  return (await getSetting(APP_SEGMENT_KEY)) === "LITE" ? "LITE" : "PRO";
+}
+
+export async function setAppSegment(segment: AppSegment): Promise<void> {
+  await setSetting(APP_SEGMENT_KEY, segment);
 }
 
 export const CUSTOM_OCCASIONS_KEY = "customOccasions";

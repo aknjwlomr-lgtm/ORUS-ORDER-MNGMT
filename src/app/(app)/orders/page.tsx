@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { getBranchManagementEnabled, getCustomCakeCategories, getCustomFreshBakeItems } from "@/lib/settings";
+import { getBranchManagementEnabled, getCustomCakeCategories, getCustomFreshBakeItems, getAdminSectionAccess } from "@/lib/settings";
 import { orderCardSelect, toOrderCard } from "@/lib/serialize";
 import { WeekAgenda } from "@/components/calendar/week-agenda";
-import { CAKE_CATEGORIES, FRESH_BAKE_ITEMS } from "@/lib/constants";
+import { CAKE_CATEGORIES, FRESH_BAKE_ITEMS, GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
 import { dateKey } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +33,7 @@ export default async function OrdersPage({
     ...(branchOn && !isAdmin ? { branchId: user.branchId ?? null } : {}),
   };
 
-  const [orders, branches, customCakeCategories, customFreshBakeItems] = await Promise.all([
+  const [orders, branches, customCakeCategories, customFreshBakeItems, adminAccess] = await Promise.all([
     prisma.order.findMany({
       where,
       orderBy: [{ requiredDate: "asc" }, { requiredTime: "asc" }],
@@ -44,7 +44,12 @@ export default async function OrdersPage({
       : Promise.resolve([]),
     getCustomCakeCategories(),
     getCustomFreshBakeItems(),
+    getAdminSectionAccess(),
   ]);
+
+  // Customer-contact (Call/WhatsApp): global admin always; others only when the
+  // global admin enabled it (Settings → Admin access).
+  const canContact = user.email === GLOBAL_ADMIN_EMAIL || adminAccess.contact;
 
   const cards = orders.map(toOrderCard);
   // Built-in cake categories / bakery items plus any staff added in Settings, so
@@ -72,6 +77,7 @@ export default async function OrdersPage({
       cakeCategories={cakeCategories}
       freshBakeItems={freshBakeItems}
       initialQuery={sp.q ?? ""}
+      canContact={canContact}
     />
   );
 }

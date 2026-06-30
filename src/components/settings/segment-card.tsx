@@ -2,34 +2,33 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutTemplate } from "lucide-react";
+import { Layers } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { updateOrderMode } from "@/app/(app)/settings/actions";
-import type { OrderMode } from "@/lib/settings";
+import { updateAppSegment } from "@/app/(app)/settings/actions";
+import type { AppSegment } from "@/lib/settings";
 
-const OPTIONS: { value: OrderMode; label: string; desc: string }[] = [
-  { value: "PRO", label: "Pro only", desc: "The full multi-step order form." },
-  { value: "LITE", label: "Lite only", desc: "A quick single-page form with the basics." },
-  { value: "BOTH", label: "Both", desc: "Show Pro and Lite as tabs — staff pick one per order." },
+const OPTIONS: { value: AppSegment; label: string; desc: string }[] = [
+  { value: "PRO", label: "Pro", desc: "All admin features on · New Order shows both Pro & Lite forms." },
+  { value: "LITE", label: "Lite", desc: "Admin features off · New Order shows only the quick Lite form." },
 ];
 
-export function OrderModeCard({ current }: { current: OrderMode }) {
+export function SegmentCard({ current }: { current: AppSegment }) {
   const router = useRouter();
-  const [mode, setMode] = useState<OrderMode>(current);
+  const [segment, setSegment] = useState<AppSegment>(current);
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
-  function choose(next: OrderMode) {
-    if (next === mode || pending) return;
-    const prev = mode;
-    setMode(next);
+  function choose(next: AppSegment) {
+    if (next === segment || pending) return;
+    const prev = segment;
+    setSegment(next);
     setMsg(null);
     start(async () => {
-      const res = await updateOrderMode(next);
+      const res = await updateAppSegment(next);
       if (res.ok) router.refresh();
       else {
-        setMode(prev);
+        setSegment(prev);
         setMsg(res.error);
       }
     });
@@ -39,14 +38,15 @@ export function OrderModeCard({ current }: { current: OrderMode }) {
     <Card>
       <CardContent className="p-5">
         <h2 className="flex items-center gap-2 font-semibold text-brand-dark">
-          <LayoutTemplate size={18} /> New order form
+          <Layers size={18} /> App segment
         </h2>
         <p className="mt-1 mb-3 text-sm text-foreground/60">
-          Choose which order form staff use on the New Order screen.
+          Choose the overall plan. Picking one applies it everywhere — you can still fine-tune
+          individual features below afterward.
         </p>
         <div className="space-y-2">
           {OPTIONS.map((o) => {
-            const active = mode === o.value;
+            const active = segment === o.value;
             return (
               <button
                 key={o.value}

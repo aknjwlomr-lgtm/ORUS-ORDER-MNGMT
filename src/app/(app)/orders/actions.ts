@@ -25,8 +25,8 @@ const num = z.coerce.number().default(0);
  * the order's primary cake columns (cakeCategory, cakeFlavor, …).
  */
 const cakeSchema = z.object({
-  cakeCategory: z.string().min(1, "Cake category is required"),
-  cakeFlavor: z.string().optional(),
+  cakeCategory: z.string().optional().default(""),
+  cakeFlavor: z.string().min(1, "Cake flavour is required"),
   cakeShape: z.string().optional(),
   cakeWeight: z.string().optional(),
   tiers: z.coerce.number().min(1).default(1),
@@ -170,12 +170,9 @@ const orderSchema = z.object({
   packagingNotes: z.string().optional(),
   staffComments: z.string().optional(),
 }).superRefine((d, ctx) => {
-  if (d.orderType === "FRESH_BAKES") {
-    if (!d.bakeItem?.trim()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Bakery item is required", path: ["bakeItem"] });
-    }
-  } else if (!d.cakeCategory?.trim()) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Cake category is required", path: ["cakeCategory"] });
+  // Fresh-bake orders still need an item name; cake category is optional.
+  if (d.orderType === "FRESH_BAKES" && !d.bakeItem?.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Bakery item is required", path: ["bakeItem"] });
   }
 });
 
@@ -215,7 +212,7 @@ export async function createOrder(raw: unknown): Promise<CreateOrderResult> {
   }
 
   const isBake = d.orderType === "FRESH_BAKES";
-  const productName = (isBake ? d.bakeItem : d.cakeCategory)!.trim();
+  const productName = ((isBake ? d.bakeItem : d.cakeCategory) ?? "").trim();
   // An order may carry cakes and/or fresh-bake items; create whichever were sent.
   const cakeRows = cakeCreateRows(d.cakes);
   const bakeItemRows = bakeItemCreateRows(d.bakeItems);
@@ -368,7 +365,7 @@ export async function updateOrder(orderId: string, raw: unknown): Promise<Create
   }
 
   const isBake = d.orderType === "FRESH_BAKES";
-  const productName = (isBake ? d.bakeItem : d.cakeCategory)!.trim();
+  const productName = ((isBake ? d.bakeItem : d.cakeCategory) ?? "").trim();
   // An order may carry cakes and/or fresh-bake items; create whichever were sent.
   const cakeRows = cakeCreateRows(d.cakes);
   const bakeItemRows = bakeItemCreateRows(d.bakeItems);

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Pencil, Printer } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+import { getAdminSectionAccess } from "@/lib/settings";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { OrderActions } from "@/components/orders/order-actions";
@@ -43,6 +44,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     recordPayment: isGlobalAdmin ? true : me?.permRecordPayment ?? false,
     deleteOrder: isGlobalAdmin ? true : me?.permDeleteOrder ?? false,
   };
+
+  // Customer-contact block and Receipt: global admin always; others only when the
+  // global admin enabled them (Settings → Admin access).
+  const access = isGlobalAdmin ? null : await getAdminSectionAccess();
+  const showContact = isGlobalAdmin || !!access?.contact;
+  const showReceipt = isGlobalAdmin || !!access?.receipt;
+  const showStatus = isGlobalAdmin || !!access?.orderStatus;
 
   // An order may have cakes, fresh-bake items, or both. Older orders have no
   // line rows, so fall back to the primary columns for their single type.
@@ -88,7 +96,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </div>
         </div>
         <div className="flex gap-2">
-          <Link href={`/orders/${o.id}/receipt`}><Button size="sm" variant="outline"><Printer size={16} /> Receipt</Button></Link>
+          {showReceipt && (
+            <Link href={`/orders/${o.id}/receipt`}><Button size="sm" variant="outline"><Printer size={16} /> Receipt</Button></Link>
+          )}
           {user?.role === "ADMIN" && (
             <Link href={`/orders/${o.id}/edit`}><Button size="sm"><Pencil size={16} /> Edit</Button></Link>
           )}
@@ -181,6 +191,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           perms={perms}
           tracks={tracks}
           msg={msg}
+          showContact={showContact}
+          showStatus={showStatus}
         />
       </div>
 

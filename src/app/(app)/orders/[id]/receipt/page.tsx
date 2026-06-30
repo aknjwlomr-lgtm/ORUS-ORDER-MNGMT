@@ -1,14 +1,16 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { getAppName } from "@/lib/settings";
+import { getAppName, getAdminSectionAccess } from "@/lib/settings";
 import { inr, formatDate, bakeQty } from "@/lib/utils";
-import { PAYMENT_MODE_LABEL, ORDER_STATUS_LABEL } from "@/lib/constants";
+import { PAYMENT_MODE_LABEL, ORDER_STATUS_LABEL, GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
 import { ReceiptActions } from "./receipt-actions";
 
 export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser();
+  const user = await requireUser();
   const { id } = await params;
+  // Receipt hidden for this user by the global admin (Settings → Admin access).
+  if (user.email !== GLOBAL_ADMIN_EMAIL && !(await getAdminSectionAccess()).receipt) redirect(`/orders/${id}`);
   const o = await prisma.order.findUnique({
     where: { id },
     include: {

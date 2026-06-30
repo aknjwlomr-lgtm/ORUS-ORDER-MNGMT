@@ -3,8 +3,10 @@ import { prisma } from "@/lib/prisma";
 import {
   getCustomFreshBakeItems, getCustomCakeCategories,
   getCustomCakeFlavors, getCustomCakeShapes, getCustomCakeWeights,
-  getProductTypesEnabled, getBranchManagementEnabled, getStaffMembers, getOrderMode,
+  getProductTypesEnabled, getBranchManagementEnabled, getStaffMembers, getAppSegment,
+  getAdminSectionAccess,
 } from "@/lib/settings";
+import { GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
 import { OrderForm } from "@/components/orders/order-form";
 import { LiteOrderForm } from "@/components/orders/lite-order-form";
 import { NewOrderTabs } from "@/components/orders/new-order-tabs";
@@ -21,7 +23,7 @@ export default async function NewOrderPage({
   const pickBranch = isAdmin && branchOn;
   const [
     customBakeItems, customCakeCategories,
-    customCakeFlavors, customCakeShapes, customCakeWeights, branches, customerDirectory, productTypes, staffMembers, orderMode,
+    customCakeFlavors, customCakeShapes, customCakeWeights, branches, customerDirectory, productTypes, staffMembers, appSegment, adminAccess,
   ] = await Promise.all([
     getCustomFreshBakeItems(),
     getCustomCakeCategories(),
@@ -38,8 +40,13 @@ export default async function NewOrderPage({
     }),
     getProductTypesEnabled(),
     getStaffMembers(),
-    getOrderMode(),
+    getAppSegment(),
+    getAdminSectionAccess(),
   ]);
+
+  // Receipt access (for the success screen's Print-receipt button): global admin
+  // always; others only when the global admin enabled it.
+  const canReceipt = user.email === GLOBAL_ADMIN_EMAIL || adminAccess.receipt;
 
   const directory = customerDirectory.map((c) => ({
     id: c.id, name: c.name, phone: c.phone, whatsapp: c.whatsapp ?? "",
@@ -61,6 +68,7 @@ export default async function NewOrderPage({
       pickBranch={pickBranch}
       staffMembers={staffMembers}
       customerDirectory={directory}
+      canReceipt={canReceipt}
     />
   );
 
@@ -78,7 +86,7 @@ export default async function NewOrderPage({
     />
   );
 
-  if (orderMode === "LITE") return liteForm;
-  if (orderMode === "BOTH") return <NewOrderTabs defaultTab="pro" pro={proForm} lite={liteForm} />;
-  return proForm;
+  // Lite segment → quick form only; Pro segment → both forms as tabs.
+  if (appSegment === "LITE") return liteForm;
+  return <NewOrderTabs defaultTab="pro" pro={proForm} lite={liteForm} />;
 }

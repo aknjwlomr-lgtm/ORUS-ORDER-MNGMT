@@ -253,6 +253,7 @@ export function OrderForm({
   customerDirectory = [],
   cakesEnabled = true,
   freshBakesEnabled = true,
+  canReceipt = true,
 }: {
   mode: "create" | "edit";
   orderId?: string;
@@ -271,6 +272,7 @@ export function OrderForm({
   customerDirectory?: CustomerSuggestion[];
   cakesEnabled?: boolean;
   freshBakesEnabled?: boolean;
+  canReceipt?: boolean;
 }) {
   const router = useRouter();
   // Both toggles can't be off (enforced in settings); when cakes are disabled the
@@ -411,6 +413,7 @@ export function OrderForm({
   function productError(): string | null {
     for (const c of cakes) {
       if (String(c.price).trim() !== "" && Number(c.price) <= 0) return "Each cake needs a price greater than 0";
+      if (Number(c.price || 0) > 0 && !c.cakeFlavor.trim()) return "Cake flavour is required";
     }
     for (const it of bakeItems) {
       const touched = it.name.trim() !== "" || String(it.price).trim() !== "";
@@ -637,7 +640,9 @@ export function OrderForm({
         <h2 className="text-xl font-bold">Order saved!</h2>
         <p className="mt-1 font-mono text-brand-dark">{success.number}</p>
         <div className="mt-6 grid grid-cols-2 gap-2">
-          <Link href={`/orders/${success.id}/receipt`}><Button variant="outline" className="w-full">🧾 Print receipt</Button></Link>
+          {canReceipt && (
+            <Link href={`/orders/${success.id}/receipt`}><Button variant="outline" className="w-full">🧾 Print receipt</Button></Link>
+          )}
           <Link href={`/reminders/new?order=${success.id}`}><Button variant="outline" className="w-full">🔔 Add reminder</Button></Link>
           <Link href={`/orders/${success.id}`}><Button variant="outline" className="w-full">👁 View order</Button></Link>
           <Button className="w-full" onClick={resetDraft}>➕ New order</Button>
@@ -910,7 +915,7 @@ export function OrderForm({
                       )}
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <Fieldset label="Cake category" required>
+                      <Fieldset label="Cake category">
                         <CakeCategoryPicker
                           value={c.cakeCategory}
                           onChange={(val) => setCake(i, "cakeCategory", val)}
@@ -919,7 +924,7 @@ export function OrderForm({
                           onCustomChange={setCakeCategories}
                         />
                       </Fieldset>
-                      <Fieldset label="Flavor">
+                      <Fieldset label="Flavor" required>
                         <AttributePicker
                           value={c.cakeFlavor}
                           onChange={(val) => setCake(i, "cakeFlavor", val)}

@@ -32,6 +32,8 @@ export function OrderActions({
   perms,
   tracks,
   msg,
+  showContact = true,
+  showStatus = true,
 }: {
   orderId: string;
   phone: string;
@@ -41,6 +43,8 @@ export function OrderActions({
   // One independently-tracked progress bar per product type (cake / fresh bakes).
   tracks: OrderTrack[];
   msg: MsgOrder;
+  showContact?: boolean;
+  showStatus?: boolean;
 }) {
   const router = useRouter();
   const appName = useAppName();
@@ -61,7 +65,9 @@ export function OrderActions({
 
   return (
     <div className="space-y-4">
-      {/* Status — one independently-tracked progress bar + controls per product type. */}
+      {/* Status — one independently-tracked progress bar + controls per product type.
+          Gated by the global admin (Settings → Admin access → Order status). */}
+      {showStatus && (
       <div className="rounded-2xl border border-black/5 bg-card p-4 shadow-sm">
         <p className="mb-3 text-sm font-semibold">Order status</p>
         <div className="space-y-4">
@@ -94,35 +100,28 @@ export function OrderActions({
                   </div>
                 )}
 
-                {(perms.process || perms.deliverCancel) && (
-                  <div className="flex flex-wrap gap-2">
-                    {perms.process && (
-                      <>
-                        <Button size="sm" variant={stageIdx === 1 ? "primary" : "soft"} disabled={pending} onClick={() => setStatus(track, "BAKING")}>
-                          Start processing
-                        </Button>
-                        <Button size="sm" variant={stageIdx >= 2 ? "primary" : "soft"} disabled={pending} onClick={() => setStatus(track, "OUT_FOR_DELIVERY")}>
-                          Finished processing
-                        </Button>
-                      </>
-                    )}
-                    {perms.deliverCancel && (
-                      <>
-                        <Button size="sm" variant={status === "DELIVERED" ? "success" : "soft"} disabled={pending || status === "DELIVERED"} className="ml-auto" onClick={() => markDelivered(track)}>
-                          Delivered
-                        </Button>
-                        <Button size="sm" variant="danger" disabled={pending || cancelled} onClick={() => { if (confirm("Are you sure you want to cancel this order?")) setStatus(track, "CANCELLED"); }}>
-                          Cancelled
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                )}
+                {/* Status actions — shown whenever the status section is visible
+                    (the Admin-access "Order status" toggle is the single gate). */}
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant={stageIdx === 1 ? "primary" : "soft"} disabled={pending} onClick={() => setStatus(track, "BAKING")}>
+                    Start processing
+                  </Button>
+                  <Button size="sm" variant={stageIdx >= 2 ? "primary" : "soft"} disabled={pending} onClick={() => setStatus(track, "OUT_FOR_DELIVERY")}>
+                    Finished processing
+                  </Button>
+                  <Button size="sm" variant={status === "DELIVERED" ? "success" : "soft"} disabled={pending || status === "DELIVERED"} className="ml-auto" onClick={() => markDelivered(track)}>
+                    Delivered
+                  </Button>
+                  <Button size="sm" variant="danger" disabled={pending || cancelled} onClick={() => { if (confirm("Are you sure you want to cancel this order?")) setStatus(track, "CANCELLED"); }}>
+                    Cancelled
+                  </Button>
+                </div>
               </div>
             );
           })}
         </div>
       </div>
+      )}
 
       {/* Add payment */}
       {perms.recordPayment && balance > 0 && (
@@ -150,8 +149,9 @@ export function OrderActions({
         </div>
       )}
 
-      {/* Communication */}
-      <div className="rounded-2xl border border-black/5 bg-card p-4 shadow-sm">
+      {/* Communication — gated by the global admin (Settings → Admin access). */}
+      {showContact && (
+        <div className="rounded-2xl border border-black/5 bg-card p-4 shadow-sm">
         <p className="mb-2 text-sm font-semibold">Contact customer</p>
         <div className="flex flex-wrap gap-2">
           <a href={telLink(phone)}><Button size="sm" variant="outline"><Phone size={16} /> Call</Button></a>
@@ -166,6 +166,7 @@ export function OrderActions({
           </a>
         </div>
       </div>
+      )}
 
       {perms.deleteOrder && (
         <Button

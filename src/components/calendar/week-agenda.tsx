@@ -141,6 +141,7 @@ export function WeekAgenda({
   cakeCategories = CAKE_CATEGORIES,
   freshBakeItems = FRESH_BAKE_ITEMS,
   initialQuery = "",
+  canContact = true,
 }: {
   weekStartKey: string;
   orders: OrderCardData[];
@@ -151,6 +152,7 @@ export function WeekAgenda({
   cakeCategories?: string[];
   freshBakeItems?: string[];
   initialQuery?: string;
+  canContact?: boolean;
 }) {
   const [selected, setSelected] = useState(selectedDate);
   // After navigating to another week the server sends a new anchor day. Re-sync the
@@ -445,7 +447,7 @@ export function WeekAgenda({
             </div>
           </div>
         ) : (
-          dayOrders.map((o) => <OrderCard key={o.id} o={o} canEdit={canEdit} />)
+          dayOrders.map((o) => <OrderCard key={o.id} o={o} canEdit={canEdit} canContact={canContact} />)
         )}
       </div>
 

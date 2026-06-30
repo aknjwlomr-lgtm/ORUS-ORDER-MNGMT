@@ -7,21 +7,27 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { updateAdminSectionAccess } from "@/app/(app)/settings/actions";
 
-type Section = "userManagement" | "branchManagement" | "reports" | "customers";
+type Section = "userManagement" | "branchManagement" | "reports" | "customers" | "contact" | "receipt" | "orderStatus";
 
 export function AdminAccessCard({
   userManagement,
   branchManagement,
   reports,
   customers,
+  contact,
+  receipt,
+  orderStatus,
 }: {
   userManagement: boolean;
   branchManagement: boolean;
   reports: boolean;
   customers: boolean;
+  contact: boolean;
+  receipt: boolean;
+  orderStatus: boolean;
 }) {
   const router = useRouter();
-  const [state, setState] = useState({ userManagement, branchManagement, reports, customers });
+  const [state, setState] = useState({ userManagement, branchManagement, reports, customers, contact, receipt, orderStatus });
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -54,6 +60,9 @@ export function AdminAccessCard({
           <ToggleRow label="Branch management" enabled={state.branchManagement} disabled={pending} onToggle={() => toggle("branchManagement")} />
           <ToggleRow label="Reports" enabled={state.reports} disabled={pending} onToggle={() => toggle("reports")} />
           <ToggleRow label="Customers" enabled={state.customers} disabled={pending} onToggle={() => toggle("customers")} />
+          <ToggleRow label="Customer contact (Call / WhatsApp)" enabled={state.contact} disabled={pending} onToggle={() => toggle("contact")} />
+          <ToggleRow label="Order receipt" enabled={state.receipt} disabled={pending} onToggle={() => toggle("receipt")} />
+          <ToggleRow label="Order status & progress" enabled={state.orderStatus} disabled={pending} onToggle={() => toggle("orderStatus")} />
         </div>
         {msg && <p className="mt-3 text-sm text-rose-600">{msg}</p>}
       </CardContent>

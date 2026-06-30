@@ -11,6 +11,7 @@ import {
   getProductTypesEnabled, setProductTypeEnabled, setBranchManagementEnabled,
   getStaffMembers, setStaffMembers, setOrderMode, type OrderMode,
   setAdminSectionAccess, type AdminSection,
+  setAppSegment, setAllAdminSectionAccess, type AppSegment,
 } from "@/lib/settings";
 import { GLOBAL_ADMIN_EMAIL, RETENTION_OPTIONS } from "@/lib/constants";
 
@@ -169,12 +170,35 @@ export async function updateAdminSectionAccess(section: AdminSection, enabled: b
   if (sessionUser.email !== GLOBAL_ADMIN_EMAIL) {
     return { ok: false, error: "Only the global admin can change admin access" };
   }
-  if (!["userManagement", "branchManagement", "reports", "customers"].includes(section)) {
+  if (!["userManagement", "branchManagement", "reports", "customers", "contact", "receipt", "orderStatus"].includes(section)) {
     return { ok: false, error: "Invalid section" };
   }
   await setAdminSectionAccess(section, enabled);
   revalidatePath("/settings");
   revalidatePath("/", "layout"); // nav links (Reports/Customers) live in the app layout
+  revalidatePath("/orders"); // contact buttons on order cards
+  return { ok: true };
+}
+
+/**
+ * Global admin picks the app segment (Pro/Lite). Applies it as a preset: PRO
+ * turns every admin feature on, LITE turns them all off. The segment also drives
+ * the New Order form (Pro→both, Lite→Lite). Individual toggles stay editable.
+ */
+export async function updateAppSegment(segment: AppSegment): Promise<Result> {
+  const sessionUser = await requireUser();
+  if (sessionUser.email !== GLOBAL_ADMIN_EMAIL) {
+    return { ok: false, error: "Only the global admin can change the app segment" };
+  }
+  if (segment !== "PRO" && segment !== "LITE") {
+    return { ok: false, error: "Invalid segment" };
+  }
+  await setAppSegment(segment);
+  await setAllAdminSectionAccess(segment === "PRO");
+  revalidatePath("/settings");
+  revalidatePath("/", "layout");
+  revalidatePath("/orders");
+  revalidatePath("/orders/new");
   return { ok: true };
 }
 
