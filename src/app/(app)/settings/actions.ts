@@ -12,6 +12,7 @@ import {
   getStaffMembers, setStaffMembers, setOrderMode, type OrderMode,
   setAdminSectionAccess, type AdminSection,
   setAppSegment, setAllAdminSectionAccess, type AppSegment,
+  setOrderFormFirst, type OrderFormFirst,
 } from "@/lib/settings";
 import { GLOBAL_ADMIN_EMAIL, RETENTION_OPTIONS } from "@/lib/constants";
 
@@ -195,9 +196,24 @@ export async function updateAppSegment(segment: AppSegment): Promise<Result> {
   }
   await setAppSegment(segment);
   await setAllAdminSectionAccess(segment === "PRO");
+  // Reset the New-Order form default: Pro shows both, Lite shows the quick form.
+  await setOrderMode(segment === "PRO" ? "BOTH" : "LITE");
   revalidatePath("/settings");
   revalidatePath("/", "layout");
   revalidatePath("/orders");
+  revalidatePath("/orders/new");
+  return { ok: true };
+}
+
+/** Global admin: which tab opens first when the form mode is "Both". */
+export async function updateOrderFormFirst(first: OrderFormFirst): Promise<Result> {
+  const sessionUser = await requireUser();
+  if (sessionUser.email !== GLOBAL_ADMIN_EMAIL) {
+    return { ok: false, error: "Only the global admin can change this" };
+  }
+  if (first !== "PRO" && first !== "LITE") return { ok: false, error: "Invalid choice" };
+  await setOrderFormFirst(first);
+  revalidatePath("/settings");
   revalidatePath("/orders/new");
   return { ok: true };
 }

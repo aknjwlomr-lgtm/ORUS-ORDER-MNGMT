@@ -4,7 +4,7 @@ import {
   getCustomFreshBakeItems, getCustomCakeCategories,
   getCustomCakeFlavors, getCustomCakeShapes, getCustomCakeWeights,
   getProductTypesEnabled, getBranchManagementEnabled, getStaffMembers, getAppSegment,
-  getAdminSectionAccess,
+  getAdminSectionAccess, getOrderMode, getOrderFormFirst,
 } from "@/lib/settings";
 import { GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
 import { OrderForm } from "@/components/orders/order-form";
@@ -23,7 +23,7 @@ export default async function NewOrderPage({
   const pickBranch = isAdmin && branchOn;
   const [
     customBakeItems, customCakeCategories,
-    customCakeFlavors, customCakeShapes, customCakeWeights, branches, customerDirectory, productTypes, staffMembers, appSegment, adminAccess,
+    customCakeFlavors, customCakeShapes, customCakeWeights, branches, customerDirectory, productTypes, staffMembers, appSegment, adminAccess, orderMode, orderFormFirst,
   ] = await Promise.all([
     getCustomFreshBakeItems(),
     getCustomCakeCategories(),
@@ -42,6 +42,8 @@ export default async function NewOrderPage({
     getStaffMembers(),
     getAppSegment(),
     getAdminSectionAccess(),
+    getOrderMode(),
+    getOrderFormFirst(),
   ]);
 
   // Receipt access (for the success screen's Print-receipt button): global admin
@@ -86,7 +88,10 @@ export default async function NewOrderPage({
     />
   );
 
-  // Lite segment → quick form only; Pro segment → both forms as tabs.
+  // Lite segment → quick form only. Pro segment → per the New-order-form choice
+  // (Lite / Pro / Both); for Both, open the chosen tab first.
   if (appSegment === "LITE") return liteForm;
-  return <NewOrderTabs defaultTab="pro" pro={proForm} lite={liteForm} />;
+  if (orderMode === "LITE") return liteForm;
+  if (orderMode === "PRO") return proForm;
+  return <NewOrderTabs defaultTab={orderFormFirst === "LITE" ? "lite" : "pro"} pro={proForm} lite={liteForm} />;
 }

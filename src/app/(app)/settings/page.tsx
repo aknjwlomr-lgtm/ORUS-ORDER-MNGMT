@@ -1,10 +1,11 @@
 import { Users, SlidersHorizontal, Building2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
-import { getOrderPrefix, getAppName, getMasterLockdown, getMasterLockdownManual, getAutoLockdownAt, getProductTypesEnabled, getBranchManagementEnabled, getStaffMembers, getAppSegment, getAdminSectionAccess } from "@/lib/settings";
+import { getOrderPrefix, getAppName, getMasterLockdown, getMasterLockdownManual, getAutoLockdownAt, getProductTypesEnabled, getBranchManagementEnabled, getStaffMembers, getAppSegment, getOrderMode, getOrderFormFirst, getAdminSectionAccess } from "@/lib/settings";
 import { GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
 import { MasterLockdownCard } from "@/components/settings/master-lockdown-card";
 import { SegmentCard } from "@/components/settings/segment-card";
+import { OrderFormModeCard } from "@/components/settings/order-form-mode-card";
 import { AdminAccessCard } from "@/components/settings/admin-access-card";
 import { SetupGuide } from "@/components/settings/setup-guide";
 import { UserManagementTabs } from "@/components/settings/user-management-tabs";
@@ -48,12 +49,18 @@ export default async function SettingsPage() {
   let lockdown = false;
   let autoLockdownAt: string | null = null;
   let appSegment: Awaited<ReturnType<typeof getAppSegment>> = "PRO";
+  let orderMode: Awaited<ReturnType<typeof getOrderMode>> = "BOTH";
+  let orderFormFirst: Awaited<ReturnType<typeof getOrderFormFirst>> = "PRO";
   if (isGlobalAdmin) {
     await getMasterLockdown();
-    const [manual, at, seg] = await Promise.all([getMasterLockdownManual(), getAutoLockdownAt(), getAppSegment()]);
+    const [manual, at, seg, mode, first] = await Promise.all([
+      getMasterLockdownManual(), getAutoLockdownAt(), getAppSegment(), getOrderMode(), getOrderFormFirst(),
+    ]);
     lockdown = manual;
     autoLockdownAt = at?.toISOString() ?? null;
     appSegment = seg;
+    orderMode = mode;
+    orderFormFirst = first;
   }
 
   // Only the global admin can see/manage the global admin account. Other admins
@@ -88,8 +95,9 @@ export default async function SettingsPage() {
           userContent={<AdminUsersPanel users={users} currentUserId={user.id} />}
           globalContent={isGlobalAdmin ? (
             <div className="space-y-4">
-              <SegmentCard current={appSegment} />
+              <SegmentCard key={`seg-${appSegment}`} current={appSegment} />
               <AdminAccessCard
+                key={`aa-${Object.values(adminAccess).join("")}`}
                 userManagement={adminAccess.userManagement}
                 branchManagement={adminAccess.branchManagement}
                 reports={adminAccess.reports}
@@ -98,6 +106,7 @@ export default async function SettingsPage() {
                 receipt={adminAccess.receipt}
                 orderStatus={adminAccess.orderStatus}
               />
+              {appSegment === "PRO" && <OrderFormModeCard key={`ofm-${orderMode}-${orderFormFirst}`} mode={orderMode} first={orderFormFirst} />}
               <MasterLockdownCard enabled={lockdown} autoLockdownAt={autoLockdownAt} />
               <SetupGuide />
               <DataResetPanel />

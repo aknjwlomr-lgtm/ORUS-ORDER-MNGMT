@@ -29,12 +29,6 @@ type ItemLine = { name: string; qty: string; unit: MeasureUnit; notes: string; p
 const cakeLine = (): CakeLine => ({ flavor: "", qty: "", unit: "PIECE", message: "", instructions: "", price: "" });
 const itemLine = (): ItemLine => ({ name: "", qty: "", unit: "PIECE", notes: "", price: "" });
 
-// Today as a local "YYYY-MM-DD" (no timezone shift).
-function todayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 // A cake's weight column stores piece/weight as a compact string ("12 pcs",
 // "1.5kg", "500g"), matching how the Pro form encodes it.
 function measureToCakeWeight(qty: string, unit: MeasureUnit): string {
@@ -74,7 +68,7 @@ export function LiteOrderForm({
   const whatsappTouched = useRef(false);
   const [branchId, setBranchId] = useState("");
   const [assignedStaff, setAssignedStaff] = useState("");
-  const [requiredDate, setRequiredDate] = useState(defaultDate || todayKey());
+  const [requiredDate, setRequiredDate] = useState(defaultDate || "");
   const [requiredTime, setRequiredTime] = useState("");
 
   const [productType, setProductType] = useState<"CAKE" | "FRESH_BAKES">(cakesEnabled ? "CAKE" : "FRESH_BAKES");

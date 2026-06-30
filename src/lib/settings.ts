@@ -109,15 +109,26 @@ export async function setProductTypeEnabled(type: "cakes" | "freshBakes", enable
 
 export const ORDER_MODE_KEY = "orderMode";
 export type OrderMode = "PRO" | "LITE" | "BOTH";
+export const ORDER_FORM_FIRST_KEY = "orderFormFirst";
+export type OrderFormFirst = "PRO" | "LITE";
 
 /**
- * Which New Order form(s) staff see: the full "Pro" wizard, the quick "Lite"
- * single-page form, or "Both" (two tabs, one order created from one tab).
- * Defaults to PRO so existing installs keep today's behaviour. Global-admin only.
+ * In the Pro segment, which New Order form(s) staff see: the full "Pro" wizard,
+ * the quick "Lite" form, or "Both" (two tabs). Defaults to BOTH (matches the Pro
+ * segment's "shows both forms"). Ignored in the Lite segment (always Lite).
  */
 export async function getOrderMode(): Promise<OrderMode> {
   const v = await getSetting(ORDER_MODE_KEY);
-  return v === "LITE" || v === "BOTH" ? v : "PRO";
+  return v === "LITE" || v === "PRO" ? v : "BOTH";
+}
+
+/** When the form mode is "Both", which tab opens first. Default Pro. */
+export async function getOrderFormFirst(): Promise<OrderFormFirst> {
+  return (await getSetting(ORDER_FORM_FIRST_KEY)) === "LITE" ? "LITE" : "PRO";
+}
+
+export async function setOrderFormFirst(first: OrderFormFirst): Promise<void> {
+  await setSetting(ORDER_FORM_FIRST_KEY, first);
 }
 
 export async function setOrderMode(mode: OrderMode): Promise<void> {
