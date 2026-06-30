@@ -220,7 +220,7 @@ const SECTIONS = [
 
 function defaults(defaultDate?: string): OrderFormValues {
   return {
-    customerName: "", phone: "", whatsapp: "", email: "", address: "", branchId: "",
+    customerName: "", phone: "", whatsapp: "", email: "", address: "", branchId: "", assignedStaff: "",
     customerType: "NEW", occasion: "Birthday", customerNotes: "",
     orderType: "CAKE", bakeItem: "", bakeQuantity: "", bakeUnit: "PIECE",
     cakeCategory: "", cakeFlavor: "", cakeShape: "",
@@ -249,6 +249,7 @@ export function OrderForm({
   customCakeWeights = [],
   branches = [],
   pickBranch = false,
+  staffMembers = [],
   customerDirectory = [],
   cakesEnabled = true,
   freshBakesEnabled = true,
@@ -266,6 +267,7 @@ export function OrderForm({
   customCakeWeights?: string[];
   branches?: { id: string; name: string }[];
   pickBranch?: boolean;
+  staffMembers?: string[];
   customerDirectory?: CustomerSuggestion[];
   cakesEnabled?: boolean;
   freshBakesEnabled?: boolean;
@@ -708,10 +710,18 @@ export function OrderForm({
               <Input value={String(v.customerName)} onChange={(e) => set("customerName", e.target.value.toUpperCase())} />
             </Fieldset>
             {pickBranch && (
-              <Fieldset label="Branch" required className="sm:col-span-2">
+              <Fieldset label="Branch" required>
                 <Select value={String(v.branchId)} onChange={(e) => set("branchId", e.target.value)}>
                   {!v.branchId && <option value="" disabled>Select branch…</option>}
                   {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </Select>
+              </Fieldset>
+            )}
+            {staffMembers.length > 0 && (
+              <Fieldset label="Staff">
+                <Select value={String(v.assignedStaff)} onChange={(e) => set("assignedStaff", e.target.value)}>
+                  <option value="">No staff</option>
+                  {staffMembers.map((s) => <option key={s} value={s}>{s}</option>)}
                 </Select>
               </Fieldset>
             )}

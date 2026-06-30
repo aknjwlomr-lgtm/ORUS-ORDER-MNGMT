@@ -9,8 +9,9 @@ import { isAdmin } from "@/lib/session";
 import {
   ORDER_PREFIX_KEY, APP_NAME_KEY, setSetting, setMasterLockdown, setAutoLockdownAt,
   getProductTypesEnabled, setProductTypeEnabled, setBranchManagementEnabled,
+  getStaffMembers, setStaffMembers, setOrderMode, type OrderMode,
 } from "@/lib/settings";
-import { GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
+import { GLOBAL_ADMIN_EMAIL, RETENTION_OPTIONS } from "@/lib/constants";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -143,6 +144,21 @@ export async function updateProductTypeEnabled(
   return { ok: true };
 }
 
+/** Global admin picks which New Order form(s) staff see: Pro, Lite, or Both. */
+export async function updateOrderMode(mode: OrderMode): Promise<Result> {
+  const sessionUser = await requireUser();
+  if (sessionUser.email !== GLOBAL_ADMIN_EMAIL) {
+    return { ok: false, error: "Only the global admin can change the order form mode" };
+  }
+  if (mode !== "PRO" && mode !== "LITE" && mode !== "BOTH") {
+    return { ok: false, error: "Invalid order form mode" };
+  }
+  await setOrderMode(mode);
+  revalidatePath("/settings");
+  revalidatePath("/orders/new");
+  return { ok: true };
+}
+
 /** Admin turns branch management on/off. When off, no branch picker/scoping. */
 export async function updateBranchManagement(enabled: boolean): Promise<Result> {
   const sessionUser = await requireUser();
@@ -188,6 +204,50 @@ export async function resetAllData(confirmText: string): Promise<Result> {
     revalidatePath(path);
   }
   return { ok: true };
+}
+
+type PurgeResult = { ok: true; deleted: number } | { ok: false; error: string };
+
+/**
+ * Admin cleanup: permanently deletes orders (with their payments, cakes, bake
+ * items and timeline) and reminders dated before the retention window, keeping
+ * everything within the last `days` days. Customers, branches, settings and users
+ * are kept, and order numbering is unaffected. Lifetime customer totals are left
+ * as-is on purpose, so they still reflect the customer's real history.
+ */
+export async function purgeOldData(days: number, confirmText: string): Promise<PurgeResult> {
+  const sessionUser = await requireUser();
+  if (!isAdmin(sessionUser)) return { ok: false, error: "Only admins can clear data" };
+  if (!(RETENTION_OPTIONS as readonly number[]).includes(days)) {
+    return { ok: false, error: "Choose 90, 180, 270 or 365 days" };
+  }
+  if (confirmText.trim().toUpperCase() !== "DELETE") {
+    return { ok: false, error: 'Type "DELETE" to confirm' };
+  }
+
+  // Keep anything dated on/after the cutoff (by required/delivery date), so recent
+  // and upcoming orders stay; only older ones are removed.
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  cutoff.setDate(cutoff.getDate() - days);
+
+  const oldOrders = { requiredDate: { lt: cutoff } };
+
+  // Delete the orders' dependent rows and old reminders first, then the orders
+  // themselves (last element — its count is what we report).
+  const [, , , , , deletedOrders] = await prisma.$transaction([
+    prisma.orderTimeline.deleteMany({ where: { order: oldOrders } }),
+    prisma.payment.deleteMany({ where: { order: oldOrders } }),
+    prisma.orderBakeItem.deleteMany({ where: { order: oldOrders } }),
+    prisma.orderCake.deleteMany({ where: { order: oldOrders } }),
+    prisma.reminder.deleteMany({ where: { reminderDate: { lt: cutoff } } }),
+    prisma.order.deleteMany({ where: oldOrders }),
+  ]);
+
+  for (const path of ["/orders", "/customers", "/reminders", "/reports", "/settings"]) {
+    revalidatePath(path);
+  }
+  return { ok: true, deleted: deletedOrders.count };
 }
 
 /**
@@ -368,4 +428,34 @@ export async function setUserPermissions(userId: string, perms: UserPermissions)
   });
   revalidatePath("/settings");
   return { ok: true };
+}
+
+type StaffResult = { ok: true; staff: string[] } | { ok: false; error: string };
+
+/** Admin adds a staff member to the assignable list (Settings → General). */
+export async function addStaffMember(name: string): Promise<StaffResult> {
+  const sessionUser = await requireUser();
+  if (!isAdmin(sessionUser)) return { ok: false, error: "Only admins can manage staff" };
+  const n = name.trim();
+  if (!n) return { ok: false, error: "Staff name is required" };
+  if (n.length > 40) return { ok: false, error: "Name must be 40 characters or fewer" };
+
+  const staff = await getStaffMembers();
+  if (staff.some((s) => s.toLowerCase() === n.toLowerCase())) {
+    return { ok: false, error: "That staff member already exists" };
+  }
+  const updated = [...staff, n];
+  await setStaffMembers(updated);
+  revalidatePath("/settings");
+  return { ok: true, staff: updated };
+}
+
+/** Admin removes a staff member from the assignable list. */
+export async function removeStaffMember(name: string): Promise<StaffResult> {
+  const sessionUser = await requireUser();
+  if (!isAdmin(sessionUser)) return { ok: false, error: "Only admins can manage staff" };
+  const updated = (await getStaffMembers()).filter((s) => s !== name);
+  await setStaffMembers(updated);
+  revalidatePath("/settings");
+  return { ok: true, staff: updated };
 }

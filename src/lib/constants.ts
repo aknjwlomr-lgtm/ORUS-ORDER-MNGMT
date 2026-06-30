@@ -225,6 +225,10 @@ export const REMINDER_TYPES = [
   "Custom Reminder",
 ];
 
+// Retention windows (in days) offered by Settings → General → "Clear old data".
+export const RETENTION_OPTIONS = [90, 180, 270, 365] as const;
+export type RetentionDays = (typeof RETENTION_OPTIONS)[number];
+
 export const REMINDER_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 export const REMINDER_STATUSES = ["PENDING", "COMPLETED", "MISSED", "SNOOZED"] as const;
 export const REMINDER_STATUS_COLOR: Record<string, string> = {

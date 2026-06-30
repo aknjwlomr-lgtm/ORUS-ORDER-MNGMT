@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Database, Rocket, RefreshCw, ShieldAlert, MapPin } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 function Code({ children }: { children: ReactNode }) {
   return <code className="rounded bg-foreground/[0.06] px-1.5 py-0.5 font-mono text-[12.5px] break-all">{children}</code>;
@@ -39,14 +39,11 @@ function Step({ n, children }: { n: number; children: ReactNode }) {
  */
 export function SetupGuide() {
   return (
-    <Card>
-      <CardContent className="space-y-4 p-5">
-        <div>
-          <h2 className="font-semibold text-brand-dark">Connect a new Supabase / Vercel</h2>
-          <p className="mt-1 text-sm text-foreground/55">
-            Step-by-step for pointing this app at a fresh database or deployment.
-          </p>
-        </div>
+    <CollapsibleSection title="Connect a new Supabase / Vercel">
+      <div className="space-y-4">
+        <p className="text-sm text-foreground/55">
+          Step-by-step for pointing this app at a fresh database or deployment.
+        </p>
 
         <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           <ShieldAlert size={18} className="mt-0.5 shrink-0" />
@@ -119,7 +116,7 @@ AUTH_TRUST_HOST   = true`}</Block>
             Pick the one nearest your Supabase region: <Code>bom1</Code> Mumbai · <Code>sin1</Code> Singapore · <Code>hnd1</Code> Tokyo · <Code>iad1</Code> US East · <Code>fra1</Code> Frankfurt.
           </li>
         </Section>
-      </CardContent>
-    </Card>
+      </div>
+    </CollapsibleSection>
   );
 }

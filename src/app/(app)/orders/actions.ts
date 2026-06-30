@@ -162,6 +162,7 @@ const orderSchema = z.object({
   paymentRef: z.string().optional(),
   billingNotes: z.string().optional(),
   // production
+  assignedStaff: z.string().optional(),
   assignedBaker: z.string().optional(),
   assignedDecorator: z.string().optional(),
   prepStatus: z.string().optional(),
@@ -288,6 +289,7 @@ export async function createOrder(raw: unknown): Promise<CreateOrderResult> {
       paymentMode: d.paymentMode ? (d.paymentMode as never) : null,
       paymentRef: d.paymentRef || null,
       billingNotes: d.billingNotes || null,
+      assignedStaff: d.assignedStaff || null,
       assignedBaker: d.assignedBaker || null,
       assignedDecorator: d.assignedDecorator || null,
       prepStatus: d.prepStatus || null,
@@ -420,6 +422,7 @@ export async function updateOrder(orderId: string, raw: unknown): Promise<Create
       paymentMode: d.paymentMode ? (d.paymentMode as never) : null,
       paymentRef: d.paymentRef || null,
       billingNotes: d.billingNotes || null,
+      assignedStaff: d.assignedStaff || null,
       assignedBaker: d.assignedBaker || null,
       assignedDecorator: d.assignedDecorator || null,
       prepStatus: d.prepStatus || null,

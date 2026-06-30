@@ -107,6 +107,23 @@ export async function setProductTypeEnabled(type: "cakes" | "freshBakes", enable
   await setSetting(type === "cakes" ? CAKES_ENABLED_KEY : FRESH_BAKES_ENABLED_KEY, enabled ? "true" : "false");
 }
 
+export const ORDER_MODE_KEY = "orderMode";
+export type OrderMode = "PRO" | "LITE" | "BOTH";
+
+/**
+ * Which New Order form(s) staff see: the full "Pro" wizard, the quick "Lite"
+ * single-page form, or "Both" (two tabs, one order created from one tab).
+ * Defaults to PRO so existing installs keep today's behaviour. Global-admin only.
+ */
+export async function getOrderMode(): Promise<OrderMode> {
+  const v = await getSetting(ORDER_MODE_KEY);
+  return v === "LITE" || v === "BOTH" ? v : "PRO";
+}
+
+export async function setOrderMode(mode: OrderMode): Promise<void> {
+  await setSetting(ORDER_MODE_KEY, mode);
+}
+
 export const CUSTOM_OCCASIONS_KEY = "customOccasions";
 
 /** Admin/staff-created occasions, stored as a JSON array, shown alongside the built-in ones. */
@@ -204,4 +221,15 @@ export async function getCustomCakeWeights(): Promise<string[]> {
 
 export async function setCustomCakeWeights(list: string[]): Promise<void> {
   await setSetting(CUSTOM_CAKE_WEIGHTS_KEY, JSON.stringify(list));
+}
+
+export const STAFF_MEMBERS_KEY = "staffMembers";
+
+/** Bakery staff who can be assigned to an order. Managed in Settings → General. */
+export async function getStaffMembers(): Promise<string[]> {
+  return getCustomList(STAFF_MEMBERS_KEY);
+}
+
+export async function setStaffMembers(list: string[]): Promise<void> {
+  await setSetting(STAFF_MEMBERS_KEY, JSON.stringify(list));
 }

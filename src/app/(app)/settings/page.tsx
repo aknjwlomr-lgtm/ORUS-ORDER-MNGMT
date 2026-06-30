@@ -1,16 +1,19 @@
 import { Users, SlidersHorizontal, Building2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
-import { getOrderPrefix, getAppName, getMasterLockdown, getMasterLockdownManual, getAutoLockdownAt, getProductTypesEnabled, getBranchManagementEnabled } from "@/lib/settings";
+import { getOrderPrefix, getAppName, getMasterLockdown, getMasterLockdownManual, getAutoLockdownAt, getProductTypesEnabled, getBranchManagementEnabled, getStaffMembers, getOrderMode } from "@/lib/settings";
 import { GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
 import { MasterLockdownCard } from "@/components/settings/master-lockdown-card";
+import { OrderModeCard } from "@/components/settings/order-mode-card";
 import { SetupGuide } from "@/components/settings/setup-guide";
 import { UserManagementTabs } from "@/components/settings/user-management-tabs";
 import { AdminUsersPanel, type AdminUser } from "@/components/settings/admin-users-panel";
 import { OrderPrefixForm } from "@/components/settings/order-prefix-form";
 import { AppNameForm } from "@/components/settings/app-name-form";
 import { ProductTypesForm } from "@/components/settings/product-types-form";
+import { StaffPanel } from "@/components/settings/staff-panel";
 import { DataResetPanel } from "@/components/settings/data-reset-panel";
+import { DataRetentionPanel } from "@/components/settings/data-retention-panel";
 import { SettingsNav, type SettingsSection } from "@/components/settings/settings-nav";
 import { BranchPanel, type BranchRow, type BranchUser } from "@/components/settings/branch-panel";
 
@@ -23,11 +26,12 @@ export default async function SettingsPage() {
 
   // Fetch everything that's independent in parallel — one round-trip's worth of
   // latency instead of ~10 sequential queries to a remote DB.
-  const [orderPrefix, appName, productTypes, branchEnabled, allRows, branchRows] = await Promise.all([
+  const [orderPrefix, appName, productTypes, branchEnabled, staff, allRows, branchRows] = await Promise.all([
     getOrderPrefix(),
     getAppName(),
     getProductTypesEnabled(),
     getBranchManagementEnabled(),
+    getStaffMembers(),
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.branch.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { users: true } } } }),
   ]);
@@ -36,11 +40,13 @@ export default async function SettingsPage() {
   // timer, so run it first, then read the two flags in parallel.
   let lockdown = false;
   let autoLockdownAt: string | null = null;
+  let orderMode: Awaited<ReturnType<typeof getOrderMode>> = "PRO";
   if (isGlobalAdmin) {
     await getMasterLockdown();
-    const [manual, at] = await Promise.all([getMasterLockdownManual(), getAutoLockdownAt()]);
+    const [manual, at, mode] = await Promise.all([getMasterLockdownManual(), getAutoLockdownAt(), getOrderMode()]);
     lockdown = manual;
     autoLockdownAt = at?.toISOString() ?? null;
+    orderMode = mode;
   }
 
   // Only the global admin can see/manage the global admin account. Other admins
@@ -73,6 +79,7 @@ export default async function SettingsPage() {
           userContent={<AdminUsersPanel users={users} currentUserId={user.id} />}
           globalContent={isGlobalAdmin ? (
             <div className="space-y-4">
+              <OrderModeCard current={orderMode} />
               <MasterLockdownCard enabled={lockdown} autoLockdownAt={autoLockdownAt} />
               <SetupGuide />
               <DataResetPanel />
@@ -95,7 +102,9 @@ export default async function SettingsPage() {
         <div className="space-y-4">
           <AppNameForm current={appName} />
           <OrderPrefixForm current={orderPrefix} />
+          <StaffPanel staff={staff} />
           <ProductTypesForm cakes={productTypes.cakes} freshBakes={productTypes.freshBakes} />
+          <DataRetentionPanel />
         </div>
       ),
     },

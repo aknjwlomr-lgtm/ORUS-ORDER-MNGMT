@@ -4,7 +4,7 @@ import { requireUser, isAdmin } from "@/lib/session";
 import {
   getCustomFreshBakeItems, getCustomCakeCategories,
   getCustomCakeFlavors, getCustomCakeShapes, getCustomCakeWeights,
-  getBranchManagementEnabled,
+  getBranchManagementEnabled, getStaffMembers,
 } from "@/lib/settings";
 import { OrderForm, type OrderFormValues, type CakeValues, type BakeItemValues } from "@/components/orders/order-form";
 import { dateKey } from "@/lib/utils";
@@ -34,6 +34,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     occasion: o.occasion ?? "Birthday",
     customerNotes: o.customer.notes ?? "",
     branchId: o.branchId ?? "",
+    assignedStaff: o.assignedStaff ?? "",
     // The toggle is a view switcher with only Cake / Fresh Bakes; a MIXED order
     // opens on the Cake view (both lists are loaded below).
     orderType: o.orderType === "FRESH_BAKES" ? "FRESH_BAKES" : "CAKE",
@@ -120,7 +121,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
   const branchOn = await getBranchManagementEnabled();
   const [
     customBakeItems, customCakeCategories,
-    customCakeFlavors, customCakeShapes, customCakeWeights, branches,
+    customCakeFlavors, customCakeShapes, customCakeWeights, branches, staffMembers,
   ] = await Promise.all([
     getCustomFreshBakeItems(),
     getCustomCakeCategories(),
@@ -128,6 +129,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     getCustomCakeShapes(),
     getCustomCakeWeights(),
     branchOn ? prisma.branch.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
+    getStaffMembers(),
   ]);
   return (
     <OrderForm
@@ -143,6 +145,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
       customCakeWeights={customCakeWeights}
       branches={branches}
       pickBranch={branchOn}
+      staffMembers={staffMembers}
     />
   );
 }

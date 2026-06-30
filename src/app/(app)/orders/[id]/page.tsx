@@ -103,6 +103,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <Field k="Address" v={o.customer.address ?? "—"} />
           <Field k="Type" v={o.customer.customerType} />
           <Field k="Total orders" v={String(o.customer.totalOrders)} />
+          {o.assignedStaff && <Field k="Staff" v={o.assignedStaff} />}
         </Section>
 
         {hasCakes &&

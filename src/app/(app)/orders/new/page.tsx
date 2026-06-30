@@ -3,9 +3,11 @@ import { prisma } from "@/lib/prisma";
 import {
   getCustomFreshBakeItems, getCustomCakeCategories,
   getCustomCakeFlavors, getCustomCakeShapes, getCustomCakeWeights,
-  getProductTypesEnabled, getBranchManagementEnabled,
+  getProductTypesEnabled, getBranchManagementEnabled, getStaffMembers, getOrderMode,
 } from "@/lib/settings";
 import { OrderForm } from "@/components/orders/order-form";
+import { LiteOrderForm } from "@/components/orders/lite-order-form";
+import { NewOrderTabs } from "@/components/orders/new-order-tabs";
 
 export default async function NewOrderPage({
   searchParams,
@@ -19,7 +21,7 @@ export default async function NewOrderPage({
   const pickBranch = isAdmin && branchOn;
   const [
     customBakeItems, customCakeCategories,
-    customCakeFlavors, customCakeShapes, customCakeWeights, branches, customerDirectory, productTypes,
+    customCakeFlavors, customCakeShapes, customCakeWeights, branches, customerDirectory, productTypes, staffMembers, orderMode,
   ] = await Promise.all([
     getCustomFreshBakeItems(),
     getCustomCakeCategories(),
@@ -35,8 +37,16 @@ export default async function NewOrderPage({
       select: { id: true, name: true, phone: true, whatsapp: true, customerType: true, totalOrders: true },
     }),
     getProductTypesEnabled(),
+    getStaffMembers(),
+    getOrderMode(),
   ]);
-  return (
+
+  const directory = customerDirectory.map((c) => ({
+    id: c.id, name: c.name, phone: c.phone, whatsapp: c.whatsapp ?? "",
+    customerType: c.customerType, totalOrders: c.totalOrders,
+  }));
+
+  const proForm = (
     <OrderForm
       mode="create"
       defaultDate={sp.date}
@@ -49,10 +59,26 @@ export default async function NewOrderPage({
       customCakeWeights={customCakeWeights}
       branches={branches}
       pickBranch={pickBranch}
-      customerDirectory={customerDirectory.map((c) => ({
-        id: c.id, name: c.name, phone: c.phone, whatsapp: c.whatsapp ?? "",
-        customerType: c.customerType, totalOrders: c.totalOrders,
-      }))}
+      staffMembers={staffMembers}
+      customerDirectory={directory}
     />
   );
+
+  const liteForm = (
+    <LiteOrderForm
+      defaultDate={sp.date}
+      cakesEnabled={productTypes.cakes}
+      freshBakesEnabled={productTypes.freshBakes}
+      customCakeFlavors={customCakeFlavors}
+      customBakeItems={customBakeItems}
+      branches={branches}
+      pickBranch={pickBranch}
+      staffMembers={staffMembers}
+      customerDirectory={directory}
+    />
+  );
+
+  if (orderMode === "LITE") return liteForm;
+  if (orderMode === "BOTH") return <NewOrderTabs defaultTab="pro" pro={proForm} lite={liteForm} />;
+  return proForm;
 }
