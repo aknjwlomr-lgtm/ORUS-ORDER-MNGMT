@@ -1,10 +1,11 @@
 import { Users, SlidersHorizontal, Building2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
-import { getOrderPrefix, getAppName, getMasterLockdown, getMasterLockdownManual, getAutoLockdownAt, getProductTypesEnabled, getBranchManagementEnabled, getStaffMembers, getOrderMode } from "@/lib/settings";
+import { getOrderPrefix, getAppName, getMasterLockdown, getMasterLockdownManual, getAutoLockdownAt, getProductTypesEnabled, getBranchManagementEnabled, getStaffMembers, getOrderMode, getAdminSectionAccess } from "@/lib/settings";
 import { GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
 import { MasterLockdownCard } from "@/components/settings/master-lockdown-card";
 import { OrderModeCard } from "@/components/settings/order-mode-card";
+import { AdminAccessCard } from "@/components/settings/admin-access-card";
 import { SetupGuide } from "@/components/settings/setup-guide";
 import { UserManagementTabs } from "@/components/settings/user-management-tabs";
 import { AdminUsersPanel, type AdminUser } from "@/components/settings/admin-users-panel";
@@ -26,7 +27,7 @@ export default async function SettingsPage() {
 
   // Fetch everything that's independent in parallel — one round-trip's worth of
   // latency instead of ~10 sequential queries to a remote DB.
-  const [orderPrefix, appName, productTypes, branchEnabled, staff, allRows, branchRows] = await Promise.all([
+  const [orderPrefix, appName, productTypes, branchEnabled, staff, allRows, branchRows, adminAccess] = await Promise.all([
     getOrderPrefix(),
     getAppName(),
     getProductTypesEnabled(),
@@ -34,7 +35,13 @@ export default async function SettingsPage() {
     getStaffMembers(),
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.branch.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { users: true } } } }),
+    getAdminSectionAccess(),
   ]);
+
+  // Which sections a regular admin may see (global admin always sees all). General
+  // is always visible.
+  const canSeeUsers = isGlobalAdmin || adminAccess.userManagement;
+  const canSeeBranches = isGlobalAdmin || adminAccess.branchManagement;
 
   // Lockdown info (global admin only). getMasterLockdown may convert a fired
   // timer, so run it first, then read the two flags in parallel.
@@ -68,8 +75,10 @@ export default async function SettingsPage() {
   const branches: BranchRow[] = branchRows.map((b) => ({ id: b.id, name: b.name, userCount: b._count.users }));
   const branchUsers: BranchUser[] = rows.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, branchId: u.branchId }));
 
-  const sections: SettingsSection[] = [
-    {
+  const sections: SettingsSection[] = [];
+
+  if (canSeeUsers) {
+    sections.push({
       key: "users",
       label: "User management",
       icon: <Users size={18} />,
@@ -79,6 +88,12 @@ export default async function SettingsPage() {
           userContent={<AdminUsersPanel users={users} currentUserId={user.id} />}
           globalContent={isGlobalAdmin ? (
             <div className="space-y-4">
+              <AdminAccessCard
+                userManagement={adminAccess.userManagement}
+                branchManagement={adminAccess.branchManagement}
+                reports={adminAccess.reports}
+                customers={adminAccess.customers}
+              />
               <OrderModeCard current={orderMode} />
               <MasterLockdownCard enabled={lockdown} autoLockdownAt={autoLockdownAt} />
               <SetupGuide />
@@ -87,28 +102,33 @@ export default async function SettingsPage() {
           ) : null}
         />
       ),
-    },
-    {
+    });
+  }
+
+  if (canSeeBranches) {
+    sections.push({
       key: "branches",
       label: "Branch management",
       icon: <Building2 size={18} />,
       content: <BranchPanel enabled={branchEnabled} branches={branches} users={branchUsers} />,
-    },
-    {
-      key: "general",
-      label: "General",
-      icon: <SlidersHorizontal size={18} />,
-      content: (
-        <div className="space-y-4">
-          <AppNameForm current={appName} />
-          <OrderPrefixForm current={orderPrefix} />
-          <StaffPanel staff={staff} />
-          <ProductTypesForm cakes={productTypes.cakes} freshBakes={productTypes.freshBakes} />
-          <DataRetentionPanel />
-        </div>
-      ),
-    },
-  ];
+    });
+  }
+
+  // General is always available to every admin.
+  sections.push({
+    key: "general",
+    label: "General",
+    icon: <SlidersHorizontal size={18} />,
+    content: (
+      <div className="space-y-4">
+        <AppNameForm current={appName} />
+        <OrderPrefixForm current={orderPrefix} />
+        <StaffPanel staff={staff} />
+        <ProductTypesForm cakes={productTypes.cakes} freshBakes={productTypes.freshBakes} />
+        <DataRetentionPanel />
+      </div>
+    ),
+  });
 
   return (
     <div className="mx-auto max-w-5xl px-3 py-4 md:px-6">

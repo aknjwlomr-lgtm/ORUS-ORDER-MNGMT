@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { getAdminSectionAccess } from "@/lib/settings";
 import { inr, dateKey, startOfDay, cn } from "@/lib/utils";
-import { PAYMENT_MODE_LABEL } from "@/lib/constants";
+import { PAYMENT_MODE_LABEL, GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
 import { ReportCharts } from "@/components/reports/report-charts";
 import { ExportButton } from "@/components/reports/export-button";
 
@@ -77,7 +79,9 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ range?: string }>;
 }) {
-  await requireAdmin();
+  const user = await requireAdmin();
+  // Hidden for this admin by the global admin (Settings → Admin access).
+  if (user.email !== GLOBAL_ADMIN_EMAIL && !(await getAdminSectionAccess()).reports) redirect("/orders");
   const sp = await searchParams;
   const range: RangeKey = RANGES.find((r) => r.key === sp.range)?.key ?? "30d";
 

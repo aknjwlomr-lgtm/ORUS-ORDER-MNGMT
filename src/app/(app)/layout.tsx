@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getAppName, getMasterLockdown } from "@/lib/settings";
+import { getAppName, getMasterLockdown, getAdminSectionAccess } from "@/lib/settings";
 import { GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
 import { AppNameProvider } from "@/components/app-name-context";
 import { Sidebar, MobileHeader, BottomNav } from "@/components/nav";
@@ -13,13 +13,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // The lockdown check, app name and account lookup are independent — fetch them
   // together so the layout costs one DB round-trip, not three (matters on mobile).
   const isGlobalAdmin = session.user.email === GLOBAL_ADMIN_EMAIL;
-  const [locked, appName, dbUser] = await Promise.all([
+  const [locked, appName, dbUser, adminAccess] = await Promise.all([
     isGlobalAdmin ? Promise.resolve(false) : getMasterLockdown(),
     getAppName(),
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: { name: true, role: true, status: true },
     }),
+    getAdminSectionAccess(),
   ]);
 
   // A JWT session can outlive its account: another admin may have reset the data
@@ -32,7 +33,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // of the app (even with an existing session).
   if (locked) redirect("/login?locked=1");
 
-  const user = { name: dbUser.name, role: dbUser.role };
+  // Reports/Customers nav links: global admin always sees them; other admins only
+  // when the global admin has enabled that area (Settings → Admin access).
+  const user = {
+    name: dbUser.name,
+    role: dbUser.role,
+    showReports: isGlobalAdmin || adminAccess.reports,
+    showCustomers: isGlobalAdmin || adminAccess.customers,
+  };
 
   return (
     <AppNameProvider value={appName}>

@@ -124,6 +124,46 @@ export async function setOrderMode(mode: OrderMode): Promise<void> {
   await setSetting(ORDER_MODE_KEY, mode);
 }
 
+export const ADMIN_USER_MGMT_KEY = "adminUserMgmtEnabled";
+export const ADMIN_BRANCH_MGMT_KEY = "adminBranchMgmtEnabled";
+export const ADMIN_REPORTS_KEY = "adminReportsEnabled";
+export const ADMIN_CUSTOMERS_KEY = "adminCustomersEnabled";
+export type AdminSection = "userManagement" | "branchManagement" | "reports" | "customers";
+
+const ADMIN_SECTION_KEY: Record<AdminSection, string> = {
+  userManagement: ADMIN_USER_MGMT_KEY,
+  branchManagement: ADMIN_BRANCH_MGMT_KEY,
+  reports: ADMIN_REPORTS_KEY,
+  customers: ADMIN_CUSTOMERS_KEY,
+};
+
+export type AdminSectionAccess = Record<AdminSection, boolean>;
+
+/**
+ * Which areas regular (non-global) admins may see. The global admin always sees
+ * everything; these flags gate the User-management and Branch-management settings
+ * sections plus the Reports and Customers nav links for the admins they create.
+ * Default OFF — the global admin opts each one in. (General is always visible.)
+ */
+export async function getAdminSectionAccess(): Promise<AdminSectionAccess> {
+  const [u, b, r, c] = await Promise.all([
+    getSetting(ADMIN_USER_MGMT_KEY),
+    getSetting(ADMIN_BRANCH_MGMT_KEY),
+    getSetting(ADMIN_REPORTS_KEY),
+    getSetting(ADMIN_CUSTOMERS_KEY),
+  ]);
+  return {
+    userManagement: u === "true",
+    branchManagement: b === "true",
+    reports: r === "true",
+    customers: c === "true",
+  };
+}
+
+export async function setAdminSectionAccess(section: AdminSection, enabled: boolean): Promise<void> {
+  await setSetting(ADMIN_SECTION_KEY[section], enabled ? "true" : "false");
+}
+
 export const CUSTOM_OCCASIONS_KEY = "customOccasions";
 
 /** Admin/staff-created occasions, stored as a JSON array, shown alongside the built-in ones. */

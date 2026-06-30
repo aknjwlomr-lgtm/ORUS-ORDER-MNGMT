@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Phone, MessageCircle, Search } from "lucide-react";
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
-import { getAppName } from "@/lib/settings";
-import { CUSTOMER_TYPE_LABEL } from "@/lib/constants";
+import { getAppName, getAdminSectionAccess } from "@/lib/settings";
+import { CUSTOMER_TYPE_LABEL, GLOBAL_ADMIN_EMAIL } from "@/lib/constants";
 import { inr, formatDate, dateKey, cn } from "@/lib/utils";
 import { telLink, waLink, paymentReminderText } from "@/lib/messages";
 
@@ -21,7 +22,9 @@ export default async function CustomersPage({
 }: {
   searchParams: Promise<{ q?: string; tab?: string }>;
 }) {
-  await requireAdmin();
+  const user = await requireAdmin();
+  // Hidden for this admin by the global admin (Settings → Admin access).
+  if (user.email !== GLOBAL_ADMIN_EMAIL && !(await getAdminSectionAccess()).customers) redirect("/orders");
   const sp = await searchParams;
   const tab = sp.tab === "due" ? "due" : "customers";
 

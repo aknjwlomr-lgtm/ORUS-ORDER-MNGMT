@@ -10,6 +10,7 @@ import {
   ORDER_PREFIX_KEY, APP_NAME_KEY, setSetting, setMasterLockdown, setAutoLockdownAt,
   getProductTypesEnabled, setProductTypeEnabled, setBranchManagementEnabled,
   getStaffMembers, setStaffMembers, setOrderMode, type OrderMode,
+  setAdminSectionAccess, type AdminSection,
 } from "@/lib/settings";
 import { GLOBAL_ADMIN_EMAIL, RETENTION_OPTIONS } from "@/lib/constants";
 
@@ -156,6 +157,24 @@ export async function updateOrderMode(mode: OrderMode): Promise<Result> {
   await setOrderMode(mode);
   revalidatePath("/settings");
   revalidatePath("/orders/new");
+  return { ok: true };
+}
+
+/**
+ * Global admin toggles whether regular admins can see a settings section
+ * (User management / Branch management). General is always visible.
+ */
+export async function updateAdminSectionAccess(section: AdminSection, enabled: boolean): Promise<Result> {
+  const sessionUser = await requireUser();
+  if (sessionUser.email !== GLOBAL_ADMIN_EMAIL) {
+    return { ok: false, error: "Only the global admin can change admin access" };
+  }
+  if (!["userManagement", "branchManagement", "reports", "customers"].includes(section)) {
+    return { ok: false, error: "Invalid section" };
+  }
+  await setAdminSectionAccess(section, enabled);
+  revalidatePath("/settings");
+  revalidatePath("/", "layout"); // nav links (Reports/Customers) live in the app layout
   return { ok: true };
 }
 

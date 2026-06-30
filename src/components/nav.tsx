@@ -10,21 +10,26 @@ import {
 import { cn } from "@/lib/utils";
 import { useAppName } from "@/components/app-name-context";
 
-type NavUser = { name?: string | null; role: string };
+type NavUser = { name?: string | null; role: string; showReports?: boolean; showCustomers?: boolean };
 
 const REPORTS = { href: "/reports", label: "Reports", icon: BarChart3 };
+const CUSTOMERS = { href: "/customers", label: "Customers", icon: Users };
 const SETTINGS = { href: "/settings", label: "Settings", icon: Settings };
 
-// Reports & Settings are admin-only.
-function itemsFor(role: string) {
-  const admin = role === "ADMIN";
+// Reports, Customers & Settings are admin-only. Reports/Customers are further
+// gated by the global admin (Settings → Admin access) for the admins they create;
+// the layout resolves those flags (global admin always true) into showReports /
+// showCustomers.
+function itemsFor(user: NavUser) {
+  const admin = user.role === "ADMIN";
+  const reports = admin && user.showReports !== false;
+  const customers = admin && user.showCustomers !== false;
   const main = [
     { href: "/orders/new", label: "New Order", icon: PlusCircle },
     { href: "/orders", label: "Orders", icon: ClipboardList },
-    ...(admin ? [REPORTS] : []),
+    ...(reports ? [REPORTS] : []),
     { href: "/reminders", label: "Reminders", icon: Bell },
-    // Customers is admin-only.
-    ...(admin ? [{ href: "/customers", label: "Customers", icon: Users }] : []),
+    ...(customers ? [CUSTOMERS] : []),
   ];
   const all = [...main, ...(admin ? [SETTINGS] : [])];
   // Mobile bottom bar: a focused subset. Reports shows for admins only.
@@ -32,7 +37,7 @@ function itemsFor(role: string) {
     { href: "/orders/new", label: "New Order", icon: PlusCircle },
     { href: "/orders", label: "Orders", icon: ClipboardList },
     { href: "/reminders", label: "Reminders", icon: Bell },
-    ...(admin ? [REPORTS] : []),
+    ...(reports ? [REPORTS] : []),
   ];
   return { main, all, bottom };
 }
@@ -51,7 +56,7 @@ async function doSignOut() {
 export function Sidebar({ user }: { user: NavUser }) {
   const pathname = usePathname();
   const appName = useAppName();
-  const { all } = itemsFor(user.role);
+  const { all } = itemsFor(user);
   return (
     <aside className="no-print hidden w-64 shrink-0 flex-col border-r border-black/5 bg-card md:flex">
       <div className="flex items-center gap-3 px-5 py-5">
@@ -101,7 +106,7 @@ export function MobileHeader({ user }: { user: NavUser }) {
   const pathname = usePathname();
   const appName = useAppName();
   const [open, setOpen] = useState(false);
-  const { all } = itemsFor(user.role);
+  const { all } = itemsFor(user);
 
   // auto-close when the route changes
   useEffect(() => {
@@ -211,7 +216,7 @@ export function MobileHeader({ user }: { user: NavUser }) {
 /* ── Mobile bottom nav (primary heads) ───────────────────────────── */
 export function BottomNav({ user }: { user: NavUser }) {
   const pathname = usePathname();
-  const { bottom } = itemsFor(user.role);
+  const { bottom } = itemsFor(user);
   return (
     <nav
       className="no-print pb-safe fixed inset-x-0 bottom-0 z-20 grid border-t border-black/5 bg-card/95 backdrop-blur md:hidden"
